@@ -457,12 +457,12 @@ var _ = Describe("ResourceManager", func() {
 						Enabled: false,
 					},
 					NodeAgentAuthorizer: resourcemanagerconfigv1alpha1.NodeAgentAuthorizerWebhookConfig{
-						Enabled:                true,
+						Enabled:                !isWorkerless,
 						AuthorizeWithSelectors: new(true),
 						MachineNamespace:       cfg.MachineNamespace,
 					},
 					VPAInPlaceUpdates: resourcemanagerconfigv1alpha1.VPAInPlaceUpdatesConfig{
-						Enabled: true,
+						Enabled: !isWorkerless,
 					},
 				},
 			}
@@ -1279,7 +1279,10 @@ metadata:
   labels:
     app: gardener-resource-manager
   name: gardener-resource-manager-shoot
-  namespace: fake-ns
+  namespace: fake-ns`
+
+			if !cfg.IsWorkerless {
+				out += `
 webhooks:
 - admissionReviewVersions:
   - v1beta1
@@ -1426,6 +1429,8 @@ webhooks:
     - pods
   sideEffects: None
   timeoutSeconds: 2`
+			}
+
 			if cfg.PodKubeAPIServerLoadBalancingWebhook.Enabled {
 				out += `
 - admissionReviewVersions:
@@ -1491,7 +1496,9 @@ webhooks:
   sideEffects: None
   timeoutSeconds: 10`
 			}
-			out += `
+
+			if !cfg.IsWorkerless {
+				out += `
 - admissionReviewVersions:
   - v1beta1
   - v1
@@ -1528,7 +1535,9 @@ webhooks:
     - pods
   sideEffects: None
   timeoutSeconds: 10`
-			if matchLabelKeysInPodTopologySpreadFeatureGateDisabled {
+			}
+
+			if matchLabelKeysInPodTopologySpreadFeatureGateDisabled && !cfg.IsWorkerless {
 				out += `
 - admissionReviewVersions:
   - v1beta1
@@ -1571,7 +1580,8 @@ webhooks:
   sideEffects: None
   timeoutSeconds: 10`
 			}
-			out += `
+			if !cfg.IsWorkerless {
+				out += `
 - admissionReviewVersions:
   - v1beta1
   - v1
@@ -1605,6 +1615,7 @@ webhooks:
   sideEffects: None
   timeoutSeconds: 10
 `
+			}
 			return out
 		}
 
@@ -2481,6 +2492,26 @@ subjects:
 
 				resourceManager = New(fakeClient, deployNamespace, sm, cfg)
 				resourceManager.SetSecrets(secrets)
+
+				compressedData, err := test.BrotliCompressionForManifests(mutatingWebhookConfigurationYAML(), clusterRoleBindingTargetYAML)
+				Expect(err).NotTo(HaveOccurred())
+
+				managedResourceSecret = &corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "managedresource-shoot-core-gardener-resource-manager",
+						Namespace: deployNamespace,
+					},
+					Type: corev1.SecretTypeOpaque,
+					Data: map[string][]byte{
+						"data.yaml.br": compressedData,
+					},
+				}
+				utilruntime.Must(kubernetesutils.MakeUnique(managedResourceSecret))
+
+				managedResource.Spec.SecretRefs = []corev1.LocalObjectReference{
+					{Name: managedResourceSecret.Name},
+				}
+				utilruntime.Must(references.InjectAnnotations(managedResource))
 			})
 
 			It("should disable controllers and webhooks properly in resource manager configuration", func() {
@@ -2503,6 +2534,20 @@ subjects:
 				actualConfigMap.ResourceVersion = ""
 				configMap.ResourceVersion = ""
 				Expect(actualConfigMap).To(DeepEqual(configMap))
+
+				By("verify that all workerless-disabled webhooks are turned off in the component config")
+				actualConfig := &resourcemanagerconfigv1alpha1.ResourceManagerConfiguration{}
+				Expect(runtime.DecodeInto(codec, []byte(actualConfigMap.Data["config.yaml"]), actualConfig)).To(Succeed())
+				Expect(actualConfig.Webhooks.PodSchedulerName.Enabled).To(BeFalse())
+				Expect(actualConfig.Webhooks.SystemComponentsConfig.Enabled).To(BeFalse())
+				Expect(actualConfig.Webhooks.ProjectedTokenMount.Enabled).To(BeFalse())
+				Expect(actualConfig.Webhooks.HighAvailabilityConfig.Enabled).To(BeFalse())
+				Expect(actualConfig.Webhooks.PodTopologySpreadConstraints.Enabled).To(BeFalse())
+				Expect(actualConfig.Webhooks.SeccompProfile.Enabled).To(BeFalse())
+				Expect(actualConfig.Webhooks.KubernetesServiceHost.Enabled).To(BeFalse())
+				Expect(actualConfig.Webhooks.PodKubeAPIServerLoadBalancing.Enabled).To(BeFalse())
+				Expect(actualConfig.Webhooks.VPAInPlaceUpdates.Enabled).To(BeFalse())
+				Expect(actualConfig.Webhooks.NodeAgentAuthorizer.Enabled).To(BeFalse())
 
 				actualClusterRole := &rbacv1.ClusterRole{}
 				Expect(fakeClient.Get(ctx, client.ObjectKey{Name: clusterRoleName}, actualClusterRole)).To(Succeed())
