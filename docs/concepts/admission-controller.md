@@ -135,6 +135,9 @@ In addition, the following service accounts are allowed to perform certain opera
 - `system:serviceaccount:kube-system:generic-garbage-collector` is allowed to `DELETE` restricted resources.
 - `system:serviceaccount:kube-system:gardener-internal` is allowed to `UPDATE` restricted resources.
 
+### FinalizerRestriction
+TODO
+
 ## Authorization Webhook Handlers
 
 This section describes the authorization webhook handlers that are currently served.
