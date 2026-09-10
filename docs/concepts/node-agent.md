@@ -40,8 +40,9 @@ This section describes the controllers in more details.
 ### [`Lease` Controller](../../pkg/nodeagent/controller/lease)
 
 This controller creates a `Lease` for `gardener-node-agent` in `kube-system` namespace of the shoot cluster.
-Each instance of `gardener-node-agent` creates its own `Lease` when its corresponding `Node` was created.
-It renews the `Lease` resource every 10 seconds. This indicates a heartbeat to the external world.
+Each instance of `gardener-node-agent` creates and renews its own `Lease` (owned by its corresponding `Node`) every 10 seconds.
+This indicates a heartbeat to the external world.
+It uses the upstream `k8s.io/component-helpers` lease controller (the same mechanism the `kubelet` uses for its node heartbeat `Lease`), which reads and renews the `Lease` via a direct, uncached client and re-reads it live on conflict.
 
 
 ### [`Node` Controller](../../pkg/nodeagent/controller/node)
