@@ -574,8 +574,9 @@ spec:
       tcp:
         maxConnectionDuration: 86400s
         tcpKeepalive:
-          interval: 75s
-          time: 7200s
+          interval: 60s
+          time: 300s
+	  probes: 5
     loadBalancer:
       localityLbSetting:
         enabled: true
