@@ -19,7 +19,10 @@ const MaxConnectionDuration = 86400
 const TCPKeepaliveTime = 300
 
 // TCPKeepaliveInterval is the duration in seconds between individual TCP keepalive probes.
-const TCPKeepaliveInterval = 10
+const TCPKeepaliveInterval = 60
+
+// TCPKeepaliveProbes is the number of TCP keepalive probes to send before considering the connection dead.
+const TCPKeepaliveProbes = 5
 
 // DestinationRuleWithLocalityPreference returns a function setting the given attributes to a destination rule object.
 func DestinationRuleWithLocalityPreference(destinationRule *istionetworkingv1beta1.DestinationRule, labels map[string]string, exportTo []string, destinationHost string) func() error {
@@ -95,6 +98,7 @@ func destinationRuleWithTrafficPolicy(
 						TcpKeepalive: &istioapinetworkingv1beta1.ConnectionPoolSettings_TCPSettings_TcpKeepalive{
 							Time:     &durationpb.Duration{Seconds: TCPKeepaliveTime},
 							Interval: &durationpb.Duration{Seconds: TCPKeepaliveInterval},
+							Probes:   TCPKeepaliveProbes,
 						},
 					},
 					Http: httpConnectionPool,
