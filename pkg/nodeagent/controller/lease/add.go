@@ -5,26 +5,21 @@
 package lease
 
 import (
-	"time"
-
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/clock"
-	"sigs.k8s.io/controller-runtime/pkg/builder"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-
-	predicateutils "github.com/gardener/gardener/pkg/controllerutils/predicate"
 )
 
 // ControllerName is the name of the controller.
 const ControllerName = "lease"
 
-// AddToManager adds the lease controller with the default Options to the manager.
-func (r *Reconciler) AddToManager(mgr manager.Manager, nodePredicate predicate.Predicate) error {
-	if r.Client == nil {
-		r.Client = mgr.GetClient()
+// AddToManager adds the lease Runnable with the default options to the manager.
+func (r *Runnable) AddToManager(mgr manager.Manager, nodeName string) error {
+	if r.RESTConfig == nil {
+		r.RESTConfig = mgr.GetConfig()
+	}
+	if r.NodeName == "" {
+		r.NodeName = nodeName
 	}
 	if r.LeaseDurationSeconds == 0 {
 		r.LeaseDurationSeconds = 40
@@ -36,13 +31,5 @@ func (r *Reconciler) AddToManager(mgr manager.Manager, nodePredicate predicate.P
 		r.Namespace = metav1.NamespaceSystem
 	}
 
-	return builder.
-		ControllerManagedBy(mgr).
-		Named(ControllerName).
-		For(&corev1.Node{}, builder.WithPredicates(nodePredicate, predicateutils.ForEventTypes(predicateutils.Create))).
-		WithOptions(controller.Options{
-			MaxConcurrentReconciles: 1,
-			ReconciliationTimeout:   time.Duration(r.LeaseDurationSeconds) * time.Second,
-		}).
-		Complete(r)
+	return mgr.Add(r)
 }
