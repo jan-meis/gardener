@@ -187,7 +187,11 @@ func validateVirtualClusterUpdate(oldGarden, newGarden *operatorv1alpha1.Garden)
 		newVirtualCluster.ETCD != nil && newVirtualCluster.ETCD.Main != nil {
 		fldBackup := fldPath.Child("etcd", "main", "backup")
 		if newVirtualCluster.ETCD.Main.Backup != nil {
-			allErrs = append(allErrs, apivalidation.ValidateImmutableField(oldVirtualCluster.ETCD.Main.Backup.BucketName, newVirtualCluster.ETCD.Main.Backup.BucketName, fldBackup.Child("bucketName"))...)
+			if !gardenerutils.CheckIfBackupChangeIsConfirmed(newGarden.Annotations) {
+				allErrs = append(allErrs, apivalidation.ValidateImmutableField(oldVirtualCluster.ETCD.Main.Backup.BucketName, newVirtualCluster.ETCD.Main.Backup.BucketName, fldBackup.Child("bucketName"))...)
+				allErrs = append(allErrs, apivalidation.ValidateImmutableField(oldVirtualCluster.ETCD.Main.Backup.Region, newVirtualCluster.ETCD.Main.Backup.Region, fldBackup.Child("region"))...)
+				allErrs = append(allErrs, apivalidation.ValidateImmutableField(oldVirtualCluster.ETCD.Main.Backup.Provider, newVirtualCluster.ETCD.Main.Backup.Provider, fldBackup.Child("provider"))...)
+			}
 		}
 		if newVirtualCluster.ETCD.Main.Backup == nil {
 			allErrs = append(allErrs, field.Forbidden(fldBackup, "backup must not be deactivated if it was set before"))
