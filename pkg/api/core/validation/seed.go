@@ -408,6 +408,13 @@ func ValidateSeedSpecUpdate(newSeedSpec, oldSeedSpec *core.SeedSpec, newSeedAnno
 				allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedSpec.Backup.BucketName, oldSeedSpec.Backup.BucketName, fldPath.Child("backup", "bucketName"))...)
 				allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedSpec.Backup.Provider, oldSeedSpec.Backup.Provider, fldPath.Child("backup", "provider"))...)
 				allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedSpec.Backup.Region, oldSeedSpec.Backup.Region, fldPath.Child("backup", "region"))...)
+			} else {
+				bucketNameChanged := !apiequality.Semantic.DeepEqual(oldSeedSpec.Backup.BucketName, newSeedSpec.Backup.BucketName)
+				providerChanged := !apiequality.Semantic.DeepEqual(oldSeedSpec.Backup.Provider, newSeedSpec.Backup.Provider)
+				regionChanged := !apiequality.Semantic.DeepEqual(oldSeedSpec.Backup.Region, newSeedSpec.Backup.Region)
+				if (regionChanged || providerChanged) && !bucketNameChanged {
+					allErrs = append(allErrs, field.Forbidden(fldPath, "changing backup provider or region without changing the bucket name is not allowed"))
+				}
 			}
 		} else {
 			allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedSpec.Backup, oldSeedSpec.Backup, fldPath.Child("backup"))...)
