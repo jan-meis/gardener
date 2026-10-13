@@ -32,7 +32,16 @@ case "$COMMAND" in
    ;;
 
   debug)
-    skaffold debug
+    # The gardener-operator is built on top of the Skaffold debug support image (carrying Delve), but keeps its normal
+    # entrypoint. Unlike 'skaffold debug', this command returns instead of blocking on a port-forward. Attach a debugger
+    # manually afterwards via hack/attach-debugger-gardener-component.sh gardener-operator.
+    skaffold run --profile=debug \
+      ${BUILD_CONCURRENCY:+--build-concurrency "$BUILD_CONCURRENCY"} \
+      --cache-artifacts="$($(dirname "$0")/get-skaffold-cache-artifacts.sh)"
+
+    echo ""
+    echo "The gardener-operator has been deployed with debugging settings. Attach a debugger with:"
+    echo "  ./hack/attach-debugger-gardener-component.sh gardener-operator"
    ;;
 
   down)

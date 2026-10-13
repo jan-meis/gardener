@@ -138,22 +138,24 @@ for the gardenlet,
 ```bash
 make operator-debug
 ```
-for the gardener-operator, and
+for the gardener-operator,
 ```bash
 make cloud-provider-local-debug
 ```
-for the local cloud provider extension.
+for the local cloud provider extension, and `make operator-debug` followed by `make garden-debug` for the gardener-apiserver, the gardener-controller-manager, the gardener-scheduler, and the gardener-admission-controller (see [below](#debugging-the-gardener-operator-gardener-apiserver-gardener-controller-manager-gardener-scheduler-gardener-admission-controller-and-gardenlet)).
 
-The latter two make targets use Skaffold debugging features, which inject a [Delve](https://github.com/go-delve/delve) entrypoint into the image.
-The `make seed-debug` target does not change the entrypoint, so you must manually attach `dlv` after the pod is deployed.
-You can do so via a [helper script](../../hack/attach-gardenlet-debugger.sh) provided in the `hack` directory:
+The `cloud-provider-local-debug` make target uses Skaffold debugging features, which inject a [Delve](https://github.com/go-delve/delve) entrypoint into the image.
+The other targets do not change the entrypoint, so you must manually attach `dlv` after the pod is deployed.
+For the gardenlet, the gardener-operator, and the gardener components the operator deploys, use the [`attach-debugger-gardener-component.sh`](../../hack/attach-debugger-gardener-component.sh) helper script provided in the `hack` directory, e.g. for the gardenlet:
 
 ```bash
-./hack/attach-debugger-gardenlet.sh
+./hack/attach-debugger-gardener-component.sh gardenlet
 ```
 
+See [below](#debugging-the-gardener-operator-gardener-apiserver-gardener-controller-manager-gardener-scheduler-gardener-admission-controller-and-gardenlet) for the other components.
+
 To step through the code with a debugger, attach your IDE to the port forwarded to localhost on your host machine.
-The default port forwarded by the `attach-debugger-gardenlet.sh` script is `2345` (can be controlled via the `-p` option). For the gardener-operator and the local cloud provider extensions, the default port is `56268`. If you debug multiple pods at the same time (e.g. by running `make operator-debug` first, followed by `make cloud-provider-local-debug` in a second terminal), the port of the second pod will be forwarded to `56269`. This is done automatically by skaffold, which will write the port to your console.
+The default port forwarded by the `attach-debugger-*.sh` scripts is `2345` (can be controlled via the `-p` option). For the local cloud provider extension, the default port is `56268`. If you debug multiple pods at the same time (e.g. by running `make cloud-provider-local-debug` twice in separate terminals), the port of the second pod will be forwarded to `56269`. This is done automatically by skaffold, which will write the port to your console.
 See the [Skaffold debugging documentation](https://skaffold.dev/docs/workflows/debug/) for details on how to set up your IDE, or check the examples below ([GoLand](#debugging-in-goland), [VS Code](#debugging-in-vs-code)).
 
 
@@ -168,11 +170,46 @@ Therefore, leader election, health checks, and readiness checks for the respecti
 
 If you have similar problems with other components, you can temporarily turn off leader election and disable liveness and readiness probes there as well.
 
+### Debugging the gardener-operator, gardener-apiserver, gardener-controller-manager, gardener-scheduler, gardener-admission-controller, and gardenlet
+
+The gardener-operator is deployed by Skaffold, while the gardener-apiserver, gardener-controller-manager, gardener-scheduler, and gardener-admission-controller are deployed by the gardener-operator based on the `Garden` resource.
+The latter four are configured via the `deployment` section of the respective component in the `Garden` (see the [`Garden` API reference](../api-reference/operator.md)).
+Disabling the health probes and leader election is intended for debugging in development setups only and must not be done in productive environments.
+
+1. Build and deploy the gardener-operator (and the images of the gardener components it deploys) based on the Skaffold debug support image. Unlike `make seed-debug`, this returns instead of blocking on a port-forward:
+   ```bash
+   make operator-debug
+   ```
+   This is enough to debug the gardener-operator itself. Continue with the next steps only to debug one of the gardener components it deploys.
+2. In a second terminal, deploy the `Garden` with the settings required for debugging. They disable the health probes of all four components, disable leader election in the gardener-controller-manager and the gardener-scheduler, and pin the number of replicas to `1`:
+   ```bash
+   make garden-debug
+   ```
+   This is currently only supported for the `single-node` scenario. See [`dev-setup/garden/overlays/debug`](../../dev-setup/garden/overlays/debug/kustomization.yaml) for the exact settings.
+3. Attach the debugger to the component you want to debug:
+   ```bash
+   ./hack/attach-debugger-gardener-component.sh gardener-operator
+   ./hack/attach-debugger-gardener-component.sh gardener-apiserver
+   ./hack/attach-debugger-gardener-component.sh gardener-controller-manager
+   ./hack/attach-debugger-gardener-component.sh gardener-scheduler
+   ./hack/attach-debugger-gardener-component.sh gardener-admission-controller
+   ```
+
+The gardenlet is deployed by Skaffold via `make seed-debug` (which builds it on the Skaffold debug support image). Attach a debugger to it the same way:
+```bash
+./hack/attach-debugger-gardener-component.sh gardenlet
+```
+
+Each of the `make *-debug` commands prints the matching `attach-debugger-gardener-component.sh` invocation once the respective component has been deployed.
+
+> [!NOTE]
+> The gardener-apiserver is an aggregated API server. While it is paused on a breakpoint, the API groups it serves (e.g. `core.gardener.cloud`) are unavailable via the virtual garden's kube-apiserver. Other components, like the gardener-controller-manager, the gardener-scheduler, or the gardenlets, will log errors or time out in the meantime.
+
 ### Debugging in GoLand
 
 1. Edit your **Run/Debug Configurations**.
 2. Add a new **Go Remote** configuration.
-3. Set the port to `56268` (or any increment of it when debugging multiple components).
+3. Set the port to the one forwarded by the respective debug command (`2345` for the `attach-debugger-*.sh` scripts, `56268` for the local cloud provider extension, or any increment of it when debugging multiple components).
 4. _Recommended:_ Change the behavior of **On disconnect** to **Leave it running**.
 
 ### Debugging in VS Code
@@ -186,7 +223,7 @@ If you have similar problems with other components, you can temporarily turn off
   "type": "go",
   "request": "attach",
   "mode": "remote",
-  "port": 56268, // or any increment of it when debugging multiple components
+  "port": 2345, // the port forwarded by the respective debug command (56268 for the local cloud provider extension), or any increment of it when debugging multiple components
   "host": "127.0.0.1"
 }
 ```

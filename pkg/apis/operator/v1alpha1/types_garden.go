@@ -567,6 +567,24 @@ type GardenerAPIServerConfig struct {
 	// a credential will be issued with a validity duration of this value.
 	// +optional
 	ShootAdminKubeconfigMaxExpiration *metav1.Duration `json:"shootAdminKubeconfigMaxExpiration,omitempty"`
+	// Deployment specifies certain gardener-apiserver deployment parameters, such as the number of replicas.
+	// +optional
+	Deployment *GardenerAPIServerDeployment `json:"deployment,omitempty"`
+}
+
+// GardenerAPIServerDeployment specifies certain gardener-apiserver deployment parameters, such as the number of
+// replicas.
+type GardenerAPIServerDeployment struct {
+	// ReplicaCount is the number of gardener-apiserver replicas. If unset, the default applies (2, or 3 if the
+	// virtual cluster is highly available).
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	ReplicaCount *int32 `json:"replicaCount,omitempty"`
+	// EnableHealthProbes specifies whether the Kubernetes liveness and readiness probes are added to the
+	// gardener-apiserver deployment. Defaults to true. Disabling them is intended for debugging only, so that a pod
+	// which is paused in a debugger is not restarted. Do not disable them in productive environments.
+	// +optional
+	EnableHealthProbes *bool `json:"enableHealthProbes,omitempty"`
 }
 
 // GardenerAdmissionControllerConfig contains configuration settings for the gardener-admission-controller.
@@ -582,6 +600,24 @@ type GardenerAdmissionControllerConfig struct {
 	// ResourceAdmissionConfiguration is the configuration for resource size restrictions for arbitrary Group-Version-Kinds.
 	// +optional
 	ResourceAdmissionConfiguration *ResourceAdmissionConfiguration `json:"resourceAdmissionConfiguration,omitempty"`
+	// Deployment specifies certain gardener-admission-controller deployment parameters, such as the number of replicas.
+	// +optional
+	Deployment *GardenerAdmissionControllerDeployment `json:"deployment,omitempty"`
+}
+
+// GardenerAdmissionControllerDeployment specifies certain gardener-admission-controller deployment parameters, such as
+// the number of replicas.
+type GardenerAdmissionControllerDeployment struct {
+	// ReplicaCount is the number of gardener-admission-controller replicas. If unset, the default applies (1, or 2 if
+	// the virtual cluster is highly available).
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	ReplicaCount *int32 `json:"replicaCount,omitempty"`
+	// EnableHealthProbes specifies whether the Kubernetes liveness and readiness probes are added to the
+	// gardener-admission-controller deployment. Defaults to true. Disabling them is intended for debugging only, so that
+	// a pod which is paused in a debugger is not restarted. Do not disable them in productive environments.
+	// +optional
+	EnableHealthProbes *bool `json:"enableHealthProbes,omitempty"`
 }
 
 // ResourceAdmissionConfiguration contains settings about arbitrary kinds and the size each resource should have at most.
@@ -631,6 +667,29 @@ type GardenerControllerManagerConfig struct {
 	// +kubebuilder:default=info
 	// +optional
 	LogLevel *string `json:"logLevel,omitempty"`
+	// Deployment specifies certain gardener-controller-manager deployment parameters, such as the number of replicas.
+	// +optional
+	Deployment *GardenerControllerDeployment `json:"deployment,omitempty"`
+}
+
+// GardenerControllerDeployment specifies certain deployment parameters of the gardener-controller-manager and the
+// gardener-scheduler, such as the number of replicas.
+type GardenerControllerDeployment struct {
+	// ReplicaCount is the number of replicas. If unset, the default applies (1, or 2 if the virtual cluster is highly
+	// available).
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	ReplicaCount *int32 `json:"replicaCount,omitempty"`
+	// EnableHealthProbes specifies whether the Kubernetes liveness and readiness probes are added to the deployment.
+	// Defaults to true. Disabling them is intended for debugging only, so that a pod which is paused in a debugger is
+	// not restarted. Do not disable them in productive environments.
+	// +optional
+	EnableHealthProbes *bool `json:"enableHealthProbes,omitempty"`
+	// EnableLeaderElection specifies whether leader election is enabled. Defaults to true. Disabling it is intended for
+	// debugging only, so that a process which is paused in a debugger does not lose its leadership. It can only be
+	// disabled if `replicaCount` is explicitly set to 1. Do not disable it in productive environments.
+	// +optional
+	EnableLeaderElection *bool `json:"enableLeaderElection,omitempty"`
 }
 
 // ProjectQuotaConfiguration defines quota configurations.
@@ -667,6 +726,9 @@ type GardenerSchedulerConfig struct {
 	// +kubebuilder:default=info
 	// +optional
 	LogLevel *string `json:"logLevel,omitempty"`
+	// Deployment specifies certain gardener-scheduler deployment parameters, such as the number of replicas.
+	// +optional
+	Deployment *GardenerControllerDeployment `json:"deployment,omitempty"`
 }
 
 // GardenerDashboardConfig contains configuration settings for the gardener-dashboard.

@@ -1413,6 +1413,27 @@ kubeConfigFile: /etc/kubernetes/admission-kubeconfigs/validatingadmissionwebhook
 					Expect(managedResourceSecretVirtual.Labels["resources.gardener.cloud/garbage-collectable-reference"]).To(Equal("true"))
 				})
 
+				Context("w/ health probes disabled", func() {
+					BeforeEach(func() {
+						values.RuntimeVersion = semver.MustParse("1.34.0")
+						values.EnableHealthProbes = new(false)
+						deployer = New(fakeClient, fakeAPIReader, namespace, fakeSecretManager, values)
+
+						deployment.Spec.Template.Spec.Containers[0].LivenessProbe = nil
+						deployment.Spec.Template.Spec.Containers[0].ReadinessProbe = nil
+					})
+
+					It("should successfully deploy the deployment without liveness and readiness probes", func() {
+						expectedRuntimeObjects = append(
+							expectedRuntimeObjects,
+							podDisruptionBudget,
+							serviceRuntime,
+						)
+
+						Expect(managedResourceRuntime).To(consistOf(expectedRuntimeObjects...))
+					})
+				})
+
 				Context("Kubernetes version >= 1.34", func() {
 					BeforeEach(func() {
 						values.RuntimeVersion = semver.MustParse("1.34.0")

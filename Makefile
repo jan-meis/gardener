@@ -355,8 +355,8 @@ operator-up operator-dev operator-debug operator-down: $(SKAFFOLD) $(HELM) $(KUB
 remote-up remote-down: $(KUBECTL)
 	$(DEV_SETUP)/remote.sh $(subst remote-,,$@) $(DEV_SETUP_WITH_WORKLOAD_IDENTITY_SUPPORT)
 
-# garden-{up,down}
-garden-up garden-down: $(KUBECTL)
+# garden-{up,debug,down}
+garden-up garden-debug garden-down: $(KUBECTL)
 	$(DEV_SETUP)/garden.sh $(subst garden-,,$@)
 
 # seed-{up,down}
@@ -367,8 +367,9 @@ seed2-%: export KUBECONFIG = $(KUBECONFIG_SEED2_CLUSTER)
 seed2-up seed2-down: $(SKAFFOLD) $(HELM) $(KUBECTL)
 	$(DEV_SETUP)/seed.sh $(subst seed2-,,$@)
 
-# gardener-{up,dev,down}
+# gardener-{up,dev,debug,down}
 gardener-up gardener-dev: $(SKAFFOLD) $(HELM) $(KUBECTL) operator-up garden-up seed-up
+gardener-debug: $(SKAFFOLD) $(HELM) $(KUBECTL) operator-debug garden-debug seed-debug
 gardener-down: $(SKAFFOLD) $(HELM) $(KUBECTL) seed-down garden-down
 
 # gardenadm-{up,down}

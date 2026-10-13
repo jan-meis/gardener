@@ -232,6 +232,9 @@ spec:
     #     - apiGroup: core.gardener.cloud
     #       resource: shoots
     #       size: 500
+    #   deployment:
+    #     replicaCount: 2
+    #     enableHealthProbes: true # disable for debugging only
     # gardenerAdmissionController:
     #   featureGates:
     #     SomeGardenerFeature: true
@@ -265,11 +268,19 @@ spec:
     #   featureGates:
     #     SomeGardenerFeature: true
     #   logLevel: info # either {debug,info,error}
+    #   deployment:
+    #     replicaCount: 1
+    #     enableHealthProbes: true # disable for debugging only
+    #     enableLeaderElection: true # disable for debugging only, requires replicaCount to be 1
     # gardenerScheduler:
     #   featureGates:
     #     SomeGardenerFeature: true
     #   logLevel: info # either {debug,info,error}
     #   strategy: SameRegion # either {SameRegion,MinimalDistance}
+    #   deployment:
+    #     replicaCount: 1
+    #     enableHealthProbes: true # disable for debugging only
+    #     enableLeaderElection: true # disable for debugging only, requires replicaCount to be 1
       gardenerDashboard: {}
     #   logLevel: info # either {trace,debug,info,warn,error}
     #   enableTokenLogin: true

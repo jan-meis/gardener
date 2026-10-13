@@ -977,8 +977,6 @@ profiles:
       - env: SCENARIO=multi-zone
       - env: SCENARIO=multi-zone-ipv6
   - name: debug
-    activation:
-      - command: debug
     patches:
       - op: add
         path: /deploy/helm/releases/0/setValues
@@ -986,6 +984,29 @@ profiles:
           config.leaderElection.leaderElect: false
           config.server.healthProbes.enable: false
           replicaCount: 1
+      # The gardener-operator is deployed by Skaffold, but 'make operator-debug' uses 'skaffold run' (not
+      # 'skaffold debug') so that the command returns instead of blocking on a port-forward. Hence, Skaffold does not
+      # inject Delve into the gardener-operator automatically. Build it on top of the Skaffold debug support image
+      # instead and attach to it manually, see hack/attach-debugger-gardener-component.sh.
+      - op: add
+        path: /build/artifacts/0/ko/fromImage
+        value: gcr.io/k8s-skaffold/skaffold-debug-support/go:latest
+      # The gardener-apiserver, gardener-controller-manager, gardener-scheduler and gardener-admission-controller are
+      # not deployed by Skaffold but by the gardener-operator. Hence, Skaffold cannot inject Delve into them. Build them
+      # on top of the Skaffold debug support image instead and attach to them manually, see
+      # hack/attach-debugger-gardener-component.sh.
+      - op: add
+        path: /build/artifacts/2/ko/fromImage
+        value: gcr.io/k8s-skaffold/skaffold-debug-support/go:latest
+      - op: add
+        path: /build/artifacts/3/ko/fromImage
+        value: gcr.io/k8s-skaffold/skaffold-debug-support/go:latest
+      - op: add
+        path: /build/artifacts/4/ko/fromImage
+        value: gcr.io/k8s-skaffold/skaffold-debug-support/go:latest
+      - op: add
+        path: /build/artifacts/5/ko/fromImage
+        value: gcr.io/k8s-skaffold/skaffold-debug-support/go:latest
 ---
 apiVersion: skaffold/v4beta12
 kind: Config

@@ -60,6 +60,7 @@ func NewGardenerAPIServer(
 		watchCacheSizes                   *gardencorev1beta1.WatchCacheSizes
 		logging                           *gardencorev1beta1.APIServerLogging
 		shootAdminKubeconfigMaxExpiration *metav1.Duration
+		enableHealthProbes                *bool
 	)
 
 	if apiServerConfig != nil {
@@ -75,6 +76,9 @@ func NewGardenerAPIServer(
 		requests = apiServerConfig.Requests
 		watchCacheSizes = apiServerConfig.WatchCacheSizes
 		shootAdminKubeconfigMaxExpiration = apiServerConfig.ShootAdminKubeconfigMaxExpiration
+		if apiServerConfig.Deployment != nil {
+			enableHealthProbes = apiServerConfig.Deployment.EnableHealthProbes
+		}
 	}
 
 	logLevel := logger.InfoLevel
@@ -113,6 +117,7 @@ func NewGardenerAPIServer(
 			TopologyAwareRoutingEnabled:       topologyAwareRoutingEnabled,
 			WorkloadIdentityTokenIssuer:       workloadIdentityTokenIssuer,
 			TargetVersion:                     targetVersion,
+			EnableHealthProbes:                enableHealthProbes,
 		},
 	), nil
 }

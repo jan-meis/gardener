@@ -18,11 +18,13 @@ VALID_COMMANDS=("up" "dev" "debug" "down")
 
 skaffold_command="run"
 skaffold_extra_profiles=()
+was_debug=false
 if [[ "$COMMAND" == "dev" ]]; then
   skaffold_command="dev"
   COMMAND="up"
 elif [[ "$COMMAND" == "debug" ]]; then
   skaffold_extra_profiles+=(--profile=debug)
+  was_debug=true
   COMMAND="up"
 fi
 
@@ -73,6 +75,12 @@ case "$COMMAND" in
       --kubeconfig "$KUBECONFIG_VIRTUAL_GARDEN_CLUSTER" \
       --cache-artifacts="$($(dirname "$0")/get-skaffold-cache-artifacts.sh)" \
       --status-check=false --platform="$nodeagent_platform" # deployments don't exist in virtual-garden, see https://skaffold.dev/docs/status-check/; nodes don't exist in virtual-garden, ensure skaffold uses the requested architectures, see https://skaffold.dev/docs/workflows/handling-platforms/
+
+    if [[ "$was_debug" == "true" ]]; then
+      echo ""
+      echo "The gardenlet has been deployed with debugging settings. Attach a debugger with:"
+      echo "  ./hack/attach-debugger-gardener-component.sh gardenlet"
+    fi
     ;;
 
   down)

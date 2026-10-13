@@ -6,6 +6,7 @@ package admissioncontroller
 
 import (
 	"fmt"
+	"strconv"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -13,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/utils/ptr"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	operatorv1alpha1 "github.com/gardener/gardener/pkg/apis/operator/v1alpha1"
@@ -78,28 +80,6 @@ func (a *gardenerAdmissionController) deployment(secretServerCert, secretGeneric
 									corev1.ResourceMemory: resource.MustParse("200Mi"),
 								},
 							},
-							LivenessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path:   "/healthz",
-										Port:   intstr.FromInt32(probePort),
-										Scheme: corev1.URISchemeHTTP,
-									},
-								},
-								InitialDelaySeconds: 15,
-								TimeoutSeconds:      5,
-							},
-							ReadinessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path:   "/readyz",
-										Port:   intstr.FromInt32(probePort),
-										Scheme: corev1.URISchemeHTTP,
-									},
-								},
-								InitialDelaySeconds: 10,
-								TimeoutSeconds:      5,
-							},
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: new(false),
 							},
@@ -138,6 +118,38 @@ func (a *gardenerAdmissionController) deployment(secretServerCert, secretGeneric
 				},
 			},
 		},
+	}
+
+	if ptr.Deref(a.values.EnableHealthProbes, true) {
+		deployment.Spec.Template.Spec.Containers[0].LivenessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path:   "/healthz",
+					Port:   intstr.FromInt32(probePort),
+					Scheme: corev1.URISchemeHTTP,
+				},
+			},
+			InitialDelaySeconds: 15,
+			TimeoutSeconds:      5,
+		}
+		deployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path:   "/readyz",
+					Port:   intstr.FromInt32(probePort),
+					Scheme: corev1.URISchemeHTTP,
+				},
+			},
+			InitialDelaySeconds: 10,
+			TimeoutSeconds:      5,
+		}
+	}
+
+	if a.values.Replicas != nil {
+		deployment.Spec.Replicas = a.values.Replicas
+		// This deployment carries the high-availability-config type label, so the resource-manager webhook would
+		// otherwise scale it back up. Set the replicas override annotation so the pinned count is honored.
+		metav1.SetMetaDataAnnotation(&deployment.ObjectMeta, resourcesv1alpha1.HighAvailabilityConfigReplicas, strconv.Itoa(int(*a.values.Replicas)))
 	}
 
 	utilruntime.Must(gardenerutils.InjectGenericKubeconfig(deployment, secretGenericTokenKubeconfig, secretVirtualGardenAccess))

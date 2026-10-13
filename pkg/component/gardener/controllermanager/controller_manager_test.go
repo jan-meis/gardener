@@ -7,6 +7,7 @@ package controllermanager_test
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -24,6 +25,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	vpaautoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
@@ -363,6 +365,32 @@ var _ = Describe("GardenerControllerManager", func() {
 
 				Expect(managedResourceRuntime).To(consistOf(expectedRuntimeObjects...))
 				Expect(deployer.Deploy(ctx)).To(Succeed())
+			})
+
+			It("should disable health probes, disable leader election, and pin replicas for debugging", func() {
+				values.EnableHealthProbes = new(false)
+				values.EnableLeaderElection = new(false)
+				values.Replicas = new(int32(1))
+				deployer = New(fakeClient, namespace, fakeSecretManager, values)
+
+				Expect(deployer.Deploy(ctx)).To(Succeed())
+
+				cm := configMap(namespace, values)
+				expectedDeployment := deployment(namespace, cm.Name, values)
+				Expect(expectedDeployment.Spec.Template.Spec.Containers[0].LivenessProbe).To(BeNil())
+				Expect(expectedDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe).To(BeNil())
+				Expect(expectedDeployment.Spec.Replicas).To(Equal(new(int32(1))))
+				Expect(expectedDeployment.Annotations).To(HaveKeyWithValue("high-availability-config.resources.gardener.cloud/replicas", "1"))
+
+				Expect(fakeClient.Get(ctx, client.ObjectKeyFromObject(managedResourceRuntime), managedResourceRuntime)).To(Succeed())
+				Expect(managedResourceRuntime).To(consistOf(
+					cm,
+					podDisruptionBudget,
+					serviceRuntime,
+					serviceMonitor,
+					vpa,
+					expectedDeployment,
+				))
 			})
 		})
 
@@ -730,7 +758,7 @@ func configMap(namespace string, testValues Values) *corev1.ConfigMap {
 			},
 		},
 		LeaderElection: &componentbaseconfigv1alpha1.LeaderElectionConfiguration{
-			LeaderElect:       new(true),
+			LeaderElect:       new(ptr.Deref(testValues.EnableLeaderElection, true)),
 			ResourceName:      controllermanagerconfigv1alpha1.ControllerManagerDefaultLockObjectName,
 			ResourceNamespace: metav1.NamespaceSystem,
 		},
@@ -818,28 +846,6 @@ func deployment(namespace, configSecretName string, testValues Values) *appsv1.D
 									corev1.ResourceMemory: resource.MustParse("1Gi"),
 								},
 							},
-							LivenessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path:   "/healthz",
-										Port:   intstr.FromInt32(2718),
-										Scheme: corev1.URISchemeHTTP,
-									},
-								},
-								InitialDelaySeconds: 30,
-								TimeoutSeconds:      5,
-							},
-							ReadinessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path:   "/readyz",
-										Port:   intstr.FromInt32(2718),
-										Scheme: corev1.URISchemeHTTP,
-									},
-								},
-								InitialDelaySeconds: 10,
-								TimeoutSeconds:      5,
-							},
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: new(false),
 							},
@@ -903,6 +909,36 @@ func deployment(namespace, configSecretName string, testValues Values) *appsv1.D
 				},
 			},
 		},
+	}
+
+	if ptr.Deref(testValues.EnableHealthProbes, true) {
+		deployment.Spec.Template.Spec.Containers[0].LivenessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path:   "/healthz",
+					Port:   intstr.FromInt32(2718),
+					Scheme: corev1.URISchemeHTTP,
+				},
+			},
+			InitialDelaySeconds: 30,
+			TimeoutSeconds:      5,
+		}
+		deployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path:   "/readyz",
+					Port:   intstr.FromInt32(2718),
+					Scheme: corev1.URISchemeHTTP,
+				},
+			},
+			InitialDelaySeconds: 10,
+			TimeoutSeconds:      5,
+		}
+	}
+
+	if testValues.Replicas != nil {
+		deployment.Spec.Replicas = testValues.Replicas
+		metav1.SetMetaDataAnnotation(&deployment.ObjectMeta, "high-availability-config.resources.gardener.cloud/replicas", strconv.Itoa(int(*testValues.Replicas)))
 	}
 
 	utilruntime.Must(references.InjectAnnotations(deployment))

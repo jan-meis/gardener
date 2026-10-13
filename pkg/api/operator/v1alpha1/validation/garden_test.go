@@ -2166,6 +2166,27 @@ var _ = Describe("Validation Tests", func() {
 							}))))
 						})
 					})
+
+					Context("Deployment", func() {
+						It("should complain about a replica count smaller than 1", func() {
+							garden.Spec.VirtualCluster.Gardener.APIServer = &operatorv1alpha1.GardenerAPIServerConfig{
+								Deployment: &operatorv1alpha1.GardenerAPIServerDeployment{ReplicaCount: new(int32(0))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+								"Type":  Equal(field.ErrorTypeInvalid),
+								"Field": Equal("spec.virtualCluster.gardener.gardenerAPIServer.deployment.replicaCount"),
+							}))))
+						})
+
+						It("should allow a replica count of 1", func() {
+							garden.Spec.VirtualCluster.Gardener.APIServer = &operatorv1alpha1.GardenerAPIServerConfig{
+								Deployment: &operatorv1alpha1.GardenerAPIServerDeployment{ReplicaCount: new(int32(1))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(BeEmpty())
+						})
+					})
 				})
 
 				Context("AdmissionController", func() {
@@ -2398,6 +2419,27 @@ var _ = Describe("Validation Tests", func() {
 							})
 						})
 					})
+
+					Context("Deployment", func() {
+						It("should complain about a replica count smaller than 1", func() {
+							garden.Spec.VirtualCluster.Gardener.AdmissionController = &operatorv1alpha1.GardenerAdmissionControllerConfig{
+								Deployment: &operatorv1alpha1.GardenerAdmissionControllerDeployment{ReplicaCount: new(int32(0))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+								"Type":  Equal(field.ErrorTypeInvalid),
+								"Field": Equal("spec.virtualCluster.gardener.gardenerAdmissionController.deployment.replicaCount"),
+							}))))
+						})
+
+						It("should allow a replica count of 1", func() {
+							garden.Spec.VirtualCluster.Gardener.AdmissionController = &operatorv1alpha1.GardenerAdmissionControllerConfig{
+								Deployment: &operatorv1alpha1.GardenerAdmissionControllerDeployment{ReplicaCount: new(int32(1))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(BeEmpty())
+						})
+					})
 				})
 
 				Context("ControllerManager", func() {
@@ -2448,6 +2490,57 @@ var _ = Describe("Validation Tests", func() {
 							}))))
 						})
 					})
+
+					Context("Deployment", func() {
+						It("should complain about a replica count smaller than 1", func() {
+							garden.Spec.VirtualCluster.Gardener.ControllerManager = &operatorv1alpha1.GardenerControllerManagerConfig{
+								Deployment: &operatorv1alpha1.GardenerControllerDeployment{ReplicaCount: new(int32(0))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+								"Type":  Equal(field.ErrorTypeInvalid),
+								"Field": Equal("spec.virtualCluster.gardener.gardenerControllerManager.deployment.replicaCount"),
+							}))))
+						})
+
+						It("should complain when leader election is disabled without explicitly setting the replica count to 1", func() {
+							garden.Spec.VirtualCluster.Gardener.ControllerManager = &operatorv1alpha1.GardenerControllerManagerConfig{
+								Deployment: &operatorv1alpha1.GardenerControllerDeployment{EnableLeaderElection: new(false)},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+								"Type":  Equal(field.ErrorTypeForbidden),
+								"Field": Equal("spec.virtualCluster.gardener.gardenerControllerManager.deployment.enableLeaderElection"),
+							}))))
+						})
+
+						It("should complain when leader election is disabled with a replica count greater than 1", func() {
+							garden.Spec.VirtualCluster.Gardener.ControllerManager = &operatorv1alpha1.GardenerControllerManagerConfig{
+								Deployment: &operatorv1alpha1.GardenerControllerDeployment{EnableLeaderElection: new(false), ReplicaCount: new(int32(2))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+								"Type":  Equal(field.ErrorTypeForbidden),
+								"Field": Equal("spec.virtualCluster.gardener.gardenerControllerManager.deployment.enableLeaderElection"),
+							}))))
+						})
+
+						It("should allow disabling leader election with a replica count of 1", func() {
+							garden.Spec.VirtualCluster.Gardener.ControllerManager = &operatorv1alpha1.GardenerControllerManagerConfig{
+								Deployment: &operatorv1alpha1.GardenerControllerDeployment{EnableLeaderElection: new(false), ReplicaCount: new(int32(1))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(BeEmpty())
+						})
+
+						It("should allow a replica count of 1", func() {
+							garden.Spec.VirtualCluster.Gardener.ControllerManager = &operatorv1alpha1.GardenerControllerManagerConfig{
+								Deployment: &operatorv1alpha1.GardenerControllerDeployment{ReplicaCount: new(int32(1))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(BeEmpty())
+						})
+					})
 				})
 
 				Context("Scheduler", func() {
@@ -2481,6 +2574,57 @@ var _ = Describe("Validation Tests", func() {
 								"Type":  Equal(field.ErrorTypeForbidden),
 								"Field": Equal("spec.virtualCluster.gardener.gardenerScheduler.featureGates.Foo"),
 							}))))
+						})
+					})
+
+					Context("Deployment", func() {
+						It("should complain about a replica count smaller than 1", func() {
+							garden.Spec.VirtualCluster.Gardener.Scheduler = &operatorv1alpha1.GardenerSchedulerConfig{
+								Deployment: &operatorv1alpha1.GardenerControllerDeployment{ReplicaCount: new(int32(0))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+								"Type":  Equal(field.ErrorTypeInvalid),
+								"Field": Equal("spec.virtualCluster.gardener.gardenerScheduler.deployment.replicaCount"),
+							}))))
+						})
+
+						It("should complain when leader election is disabled without explicitly setting the replica count to 1", func() {
+							garden.Spec.VirtualCluster.Gardener.Scheduler = &operatorv1alpha1.GardenerSchedulerConfig{
+								Deployment: &operatorv1alpha1.GardenerControllerDeployment{EnableLeaderElection: new(false)},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+								"Type":  Equal(field.ErrorTypeForbidden),
+								"Field": Equal("spec.virtualCluster.gardener.gardenerScheduler.deployment.enableLeaderElection"),
+							}))))
+						})
+
+						It("should complain when leader election is disabled with a replica count greater than 1", func() {
+							garden.Spec.VirtualCluster.Gardener.Scheduler = &operatorv1alpha1.GardenerSchedulerConfig{
+								Deployment: &operatorv1alpha1.GardenerControllerDeployment{EnableLeaderElection: new(false), ReplicaCount: new(int32(2))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+								"Type":  Equal(field.ErrorTypeForbidden),
+								"Field": Equal("spec.virtualCluster.gardener.gardenerScheduler.deployment.enableLeaderElection"),
+							}))))
+						})
+
+						It("should allow disabling leader election with a replica count of 1", func() {
+							garden.Spec.VirtualCluster.Gardener.Scheduler = &operatorv1alpha1.GardenerSchedulerConfig{
+								Deployment: &operatorv1alpha1.GardenerControllerDeployment{EnableLeaderElection: new(false), ReplicaCount: new(int32(1))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(BeEmpty())
+						})
+
+						It("should allow a replica count of 1", func() {
+							garden.Spec.VirtualCluster.Gardener.Scheduler = &operatorv1alpha1.GardenerSchedulerConfig{
+								Deployment: &operatorv1alpha1.GardenerControllerDeployment{ReplicaCount: new(int32(1))},
+							}
+
+							Expect(ValidateGarden(garden, extensions)).To(BeEmpty())
 						})
 					})
 				})

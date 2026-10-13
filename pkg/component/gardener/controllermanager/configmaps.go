@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
+	"k8s.io/utils/ptr"
 
 	controllermanagerconfigv1alpha1 "github.com/gardener/gardener/pkg/apis/config/controllermanager/v1alpha1"
 	"github.com/gardener/gardener/pkg/logger"
@@ -96,7 +97,7 @@ func (g *gardenerControllerManager) configMapControllerManagerConfig() (*corev1.
 			},
 		},
 		LeaderElection: &componentbaseconfigv1alpha1.LeaderElectionConfiguration{
-			LeaderElect:       new(true),
+			LeaderElect:       new(ptr.Deref(g.values.EnableLeaderElection, true)),
 			ResourceName:      controllermanagerconfigv1alpha1.ControllerManagerDefaultLockObjectName,
 			ResourceNamespace: metav1.NamespaceSystem,
 		},
