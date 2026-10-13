@@ -639,6 +639,11 @@ profiles:
       - op: add
         path: /build/artifacts/0/ko/fromImage
         value: gcr.io/k8s-skaffold/skaffold-debug-support/go:latest
+      # Unlike `skaffold debug`, `skaffold run` does not disable optimizations and always adds `-trimpath`.
+      # Override the compiler's trimpath value to retain local source paths for remote debugging.
+      - op: add
+        path: /build/artifacts/0/ko/flags
+        value: ["-gcflags=all=-N -l -trimpath="]
   - name: single-node
     manifests:
       kustomize:

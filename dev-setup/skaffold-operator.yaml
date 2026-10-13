@@ -977,8 +977,6 @@ profiles:
       - env: SCENARIO=multi-zone
       - env: SCENARIO=multi-zone-ipv6
   - name: debug
-    activation:
-      - command: debug
     patches:
       - op: add
         path: /deploy/helm/releases/0/setValues
@@ -986,6 +984,38 @@ profiles:
           config.leaderElection.leaderElect: false
           config.server.healthProbes.enable: false
           replicaCount: 1
+      - op: add
+        path: /build/artifacts/0/ko/fromImage
+        value: gcr.io/k8s-skaffold/skaffold-debug-support/go:latest
+      # Unlike `skaffold debug`, `skaffold run` does not disable optimizations and always adds `-trimpath`.
+      # Override the compiler's trimpath value to retain local source paths for remote debugging.
+      - op: add
+        path: /build/artifacts/0/ko/flags
+        value: ["-gcflags=all=-N -l -trimpath="]
+      - op: add
+        path: /build/artifacts/2/ko/fromImage
+        value: gcr.io/k8s-skaffold/skaffold-debug-support/go:latest
+      - op: add
+        path: /build/artifacts/2/ko/flags
+        value: ["-gcflags=all=-N -l -trimpath="]
+      - op: add
+        path: /build/artifacts/3/ko/fromImage
+        value: gcr.io/k8s-skaffold/skaffold-debug-support/go:latest
+      - op: add
+        path: /build/artifacts/3/ko/flags
+        value: ["-gcflags=all=-N -l -trimpath="]
+      - op: add
+        path: /build/artifacts/4/ko/fromImage
+        value: gcr.io/k8s-skaffold/skaffold-debug-support/go:latest
+      - op: add
+        path: /build/artifacts/4/ko/flags
+        value: ["-gcflags=all=-N -l -trimpath="]
+      - op: add
+        path: /build/artifacts/5/ko/fromImage
+        value: gcr.io/k8s-skaffold/skaffold-debug-support/go:latest
+      - op: add
+        path: /build/artifacts/5/ko/flags
+        value: ["-gcflags=all=-N -l -trimpath="]
 ---
 apiVersion: skaffold/v4beta12
 kind: Config

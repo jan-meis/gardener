@@ -50,6 +50,15 @@ type Values struct {
 	Quotas []controllermanagerconfigv1alpha1.QuotaConfiguration
 	// FeatureGates is the set of feature gates.
 	FeatureGates map[string]bool
+	// EnableHealthProbes configures whether the deployment's liveness and readiness probes are set. Defaults to true.
+	// Disabling them is intended for debugging, so a paused debugger does not trigger probe-based restarts.
+	EnableHealthProbes *bool
+	// EnableLeaderElection configures whether leader election is enabled in the component's configuration. Defaults to
+	// true. Disabling it is intended for debugging of a single replica.
+	EnableLeaderElection *bool
+	// Replicas overrides the number of replicas of the deployment. If nil, the default (1, possibly raised by the
+	// high-availability-config webhook) applies. Pinning it is intended for debugging.
+	Replicas *int32
 }
 
 // New creates a new instance of DeployWaiter for the gardener-controller-manager.

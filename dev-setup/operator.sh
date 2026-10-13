@@ -20,19 +20,26 @@ if [[ "$SCENARIO" == "remote" ]]; then
   export SKAFFOLD_DEFAULT_REPO="$registry_domain"
 fi
 
+skaffold_extra_flags=()
+if [[ "$COMMAND" == "debug" ]]; then
+  skaffold_extra_flags+=(--profile=debug)
+fi
+
 case "$COMMAND" in
-  up)
-    skaffold run \
+  up | debug)
+    skaffold run "${skaffold_extra_flags[@]}" \
       ${BUILD_CONCURRENCY:+--build-concurrency "$BUILD_CONCURRENCY"} \
       --cache-artifacts="$($(dirname "$0")/get-skaffold-cache-artifacts.sh)"
+
+    if [[ "$COMMAND" == "debug" ]]; then
+      echo ""
+      echo "The gardener-operator has been deployed with debugging settings. Attach a debugger with:"
+      echo "  ./hack/attach-debugger-gardener-component.sh gardener-operator"
+    fi
    ;;
 
   dev)
     skaffold dev
-   ;;
-
-  debug)
-    skaffold debug
    ;;
 
   down)

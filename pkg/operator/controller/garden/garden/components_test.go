@@ -165,4 +165,39 @@ var _ = Describe("Components", func() {
 			Expect(getLoadBalancerServiceExternalTrafficPolicy(garden)).To(BeNil())
 		})
 	})
+
+	Describe("#gardenerAPIServerAutoscalingConfig", func() {
+		var garden *operatorv1alpha1.Garden
+
+		BeforeEach(func() {
+			garden = &operatorv1alpha1.Garden{}
+		})
+
+		It("should default to 2 replicas", func() {
+			Expect(gardenerAPIServerAutoscalingConfig(garden).Replicas).To(Equal(new(int32(2))))
+		})
+
+		It("should default to 3 replicas for highly available gardens", func() {
+			garden.Spec.VirtualCluster.ControlPlane = &operatorv1alpha1.ControlPlane{HighAvailability: &operatorv1alpha1.HighAvailability{}}
+
+			Expect(gardenerAPIServerAutoscalingConfig(garden).Replicas).To(Equal(new(int32(3))))
+		})
+
+		It("should not override the replicas if the deployment config does not specify them", func() {
+			garden.Spec.VirtualCluster.Gardener.APIServer = &operatorv1alpha1.GardenerAPIServerConfig{
+				Deployment: &operatorv1alpha1.GardenerAPIServerDeployment{},
+			}
+
+			Expect(gardenerAPIServerAutoscalingConfig(garden).Replicas).To(Equal(new(int32(2))))
+		})
+
+		It("should override the replicas with the value from the deployment config", func() {
+			garden.Spec.VirtualCluster.ControlPlane = &operatorv1alpha1.ControlPlane{HighAvailability: &operatorv1alpha1.HighAvailability{}}
+			garden.Spec.VirtualCluster.Gardener.APIServer = &operatorv1alpha1.GardenerAPIServerConfig{
+				Deployment: &operatorv1alpha1.GardenerAPIServerDeployment{ReplicaCount: new(int32(1))},
+			}
+
+			Expect(gardenerAPIServerAutoscalingConfig(garden).Replicas).To(Equal(new(int32(1))))
+		})
+	})
 })

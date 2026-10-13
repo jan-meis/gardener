@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
+	"k8s.io/utils/ptr"
 
 	schedulerconfigv1alpha1 "github.com/gardener/gardener/pkg/apis/config/scheduler/v1alpha1"
 	"github.com/gardener/gardener/pkg/logger"
@@ -53,7 +54,7 @@ func (g *gardenerScheduler) configMapSchedulerConfig() (*corev1.ConfigMap, error
 			Kubeconfig: gardenerutils.PathGenericKubeconfig,
 		},
 		LeaderElection: &componentbaseconfigv1alpha1.LeaderElectionConfiguration{
-			LeaderElect:       new(true),
+			LeaderElect:       new(ptr.Deref(g.values.EnableLeaderElection, true)),
 			ResourceName:      schedulerconfigv1alpha1.SchedulerDefaultLockObjectName,
 			ResourceNamespace: metav1.NamespaceSystem,
 		},

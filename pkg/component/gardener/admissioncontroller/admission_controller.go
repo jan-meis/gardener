@@ -63,6 +63,12 @@ type Values struct {
 	AuthorizerRestrictionsEnabled bool
 	// TopologyAwareRoutingEnabled determines whether topology aware hints are intended for the gardener-admission-controller.
 	TopologyAwareRoutingEnabled bool
+	// EnableHealthProbes configures whether the deployment's liveness and readiness probes are set. Defaults to true.
+	// Disabling them is intended for debugging, so a paused debugger does not trigger probe-based restarts.
+	EnableHealthProbes *bool
+	// Replicas overrides the number of replicas of the deployment. If nil, the default (1, possibly raised by the
+	// high-availability-config webhook) applies. Pinning it is intended for debugging.
+	Replicas *int32
 }
 
 // New creates a new instance of DeployWaiter for the gardener-admission-controller.

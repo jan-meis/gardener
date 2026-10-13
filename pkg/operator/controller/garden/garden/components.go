@@ -796,6 +796,11 @@ func gardenerAPIServerAutoscalingConfig(garden *operatorv1alpha1.Garden) gardene
 	if helper.HighAvailabilityEnabled(garden) {
 		replicas = 3
 	}
+	// Allow overriding the replica count. The gardener-apiserver has no high-availability-config type label, so its
+	// replicas are governed directly by this value (not by the resource-manager webhook).
+	if apiServer := garden.Spec.VirtualCluster.Gardener.APIServer; apiServer != nil && apiServer.Deployment != nil && apiServer.Deployment.ReplicaCount != nil {
+		replicas = *apiServer.Deployment.ReplicaCount
+	}
 
 	return gardenerapiserver.AutoscalingConfig{
 		APIServerResources: corev1.ResourceRequirements{
@@ -1269,6 +1274,10 @@ func (r *Reconciler) newGardenerAdmissionController(garden *operatorv1alpha1.Gar
 		if config.LogLevel != nil {
 			values.LogLevel = *config.LogLevel
 		}
+		if deployment := config.Deployment; deployment != nil {
+			values.EnableHealthProbes = deployment.EnableHealthProbes
+			values.Replicas = deployment.ReplicaCount
+		}
 	}
 
 	return gardeneradmissioncontroller.New(r.RuntimeClientSet.Client(), r.GardenNamespace, secretsManager, values), nil
@@ -1288,6 +1297,11 @@ func (r *Reconciler) newGardenerControllerManager(garden *operatorv1alpha1.Garde
 
 	if config := garden.Spec.VirtualCluster.Gardener.ControllerManager; config != nil {
 		values.FeatureGates = config.FeatureGates
+		if deployment := config.Deployment; deployment != nil {
+			values.EnableHealthProbes = deployment.EnableHealthProbes
+			values.EnableLeaderElection = deployment.EnableLeaderElection
+			values.Replicas = deployment.ReplicaCount
+		}
 		if config.LogLevel != nil {
 			values.LogLevel = *config.LogLevel
 		}
@@ -1318,6 +1332,11 @@ func (r *Reconciler) newGardenerScheduler(garden *operatorv1alpha1.Garden, secre
 
 	if config := garden.Spec.VirtualCluster.Gardener.Scheduler; config != nil {
 		values.FeatureGates = config.FeatureGates
+		if deployment := config.Deployment; deployment != nil {
+			values.EnableHealthProbes = deployment.EnableHealthProbes
+			values.EnableLeaderElection = deployment.EnableLeaderElection
+			values.Replicas = deployment.ReplicaCount
+		}
 		if config.LogLevel != nil {
 			values.LogLevel = *config.LogLevel
 		}

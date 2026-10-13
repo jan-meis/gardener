@@ -51,6 +51,15 @@ type Values struct {
 	// Strategy is the candidate determination strategy used to assign a seed to shoots.
 	// If empty, the scheduler binary's defaulting will apply.
 	Strategy schedulerconfigv1alpha1.CandidateDeterminationStrategy
+	// EnableHealthProbes configures whether the deployment's liveness and readiness probes are set. Defaults to true.
+	// Disabling them is intended for debugging, so a paused debugger does not trigger probe-based restarts.
+	EnableHealthProbes *bool
+	// EnableLeaderElection configures whether leader election is enabled in the component's configuration. Defaults to
+	// true. Disabling it is intended for debugging of a single replica.
+	EnableLeaderElection *bool
+	// Replicas overrides the number of replicas of the deployment. If nil, the default (1, possibly raised by the
+	// high-availability-config webhook) applies. Pinning it is intended for debugging.
+	Replicas *int32
 }
 
 // New creates a new instance of DeployWaiter for the gardener-scheduler.

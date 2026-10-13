@@ -507,6 +507,10 @@ func validateGardenerAPIServerConfig(config *operatorv1alpha1.GardenerAPIServerC
 
 	allErrs = append(allErrs, validateGardenerFeatureGates(config.FeatureGates, fldPath.Child("featureGates"))...)
 
+	if config.Deployment != nil {
+		allErrs = append(allErrs, validateReplicaCount(config.Deployment.ReplicaCount, fldPath.Child("deployment", "replicaCount"))...)
+	}
+
 	for i, admissionPlugin := range config.AdmissionPlugins {
 		idxPath := fldPath.Child("admissionPlugins").Index(i)
 
@@ -613,6 +617,10 @@ func validateGardenerAdmissionController(config *operatorv1alpha1.GardenerAdmiss
 		allErrs = append(allErrs, admissioncontrollervalidation.ValidateResourceAdmissionConfiguration(externalAdmissionConfiguration, fldPath.Child("resourceAdmissionConfiguration"))...)
 	}
 
+	if config.Deployment != nil {
+		allErrs = append(allErrs, validateReplicaCount(config.Deployment.ReplicaCount, fldPath.Child("deployment", "replicaCount"))...)
+	}
+
 	return allErrs
 }
 
@@ -624,6 +632,7 @@ func validateGardenerControllerManagerConfig(config *operatorv1alpha1.GardenerCo
 	}
 
 	allErrs = append(allErrs, validateGardenerFeatureGates(config.FeatureGates, fldPath.Child("featureGates"))...)
+	allErrs = append(allErrs, validateGardenerControllerDeployment(config.Deployment, fldPath.Child("deployment"))...)
 
 	for i, quota := range config.DefaultProjectQuotas {
 		allErrs = append(allErrs, metav1validation.ValidateLabelSelector(quota.ProjectSelector, metav1validation.LabelSelectorValidationOptions{}, fldPath.Child("defaultProjectQuotas").Index(i).Child("projectSelector"))...)
@@ -640,6 +649,35 @@ func validateGardenerSchedulerConfig(config *operatorv1alpha1.GardenerSchedulerC
 	}
 
 	allErrs = append(allErrs, validateGardenerFeatureGates(config.FeatureGates, fldPath.Child("featureGates"))...)
+	allErrs = append(allErrs, validateGardenerControllerDeployment(config.Deployment, fldPath.Child("deployment"))...)
+
+	return allErrs
+}
+
+func validateGardenerControllerDeployment(deployment *operatorv1alpha1.GardenerControllerDeployment, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if deployment == nil {
+		return allErrs
+	}
+
+	allErrs = append(allErrs, validateReplicaCount(deployment.ReplicaCount, fldPath.Child("replicaCount"))...)
+
+	// Without leader election, multiple replicas would act on the same objects concurrently. Since the default number of
+	// replicas depends on the failure tolerance type of the Garden, require an explicit single replica.
+	if deployment.EnableLeaderElection != nil && !*deployment.EnableLeaderElection && (deployment.ReplicaCount == nil || *deployment.ReplicaCount != 1) {
+		allErrs = append(allErrs, field.Forbidden(fldPath.Child("enableLeaderElection"), "leader election can only be disabled when `replicaCount` is explicitly set to 1"))
+	}
+
+	return allErrs
+}
+
+func validateReplicaCount(replicaCount *int32, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if replicaCount != nil && *replicaCount < 1 {
+		allErrs = append(allErrs, field.Invalid(fldPath, *replicaCount, "must be greater than or equal to 1"))
+	}
 
 	return allErrs
 }

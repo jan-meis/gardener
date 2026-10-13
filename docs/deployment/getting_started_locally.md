@@ -130,68 +130,149 @@ make gardener-dev SKAFFOLD_MODULE=gardenlet
 
 ## Debugging Gardener
 
-To debug individual components, you need to build the respective `-debug` targets first. The available debug targets are:
-```bash
-make seed-debug
-```
-for the gardenlet,
-```bash
-make operator-debug
-```
-for the gardener-operator, and
-```bash
-make cloud-provider-local-debug
-```
-for the local cloud provider extension.
+Debugging a Gardener component involves three steps: deploy it with debugging settings, attach [Delve](https://github.com/go-delve/delve) to its running process, and connect your IDE to Delve.
+The local cloud-controller-manager uses a different workflow, described [below](#debugging-the-local-cloud-controller-manager).
 
-The latter two make targets use Skaffold debugging features, which inject a [Delve](https://github.com/go-delve/delve) entrypoint into the image.
-The `make seed-debug` target does not change the entrypoint, so you must manually attach `dlv` after the pod is deployed.
-You can do so via a [helper script](../../hack/attach-gardenlet-debugger.sh) provided in the `hack` directory:
+> [!WARNING]
+> The debug setup disables health probes and leader election and uses a single replica so that components can remain paused at breakpoints.
+> Use it only in development environments, never in production.
+
+### Deploying components for debugging
+
+The following commands assume that you have [set up the KinD cluster](#setting-up-the-kind-cluster-garden-and-seed) and are running them from the repository root.
+The full debug setup supports only the default IPv4 `single-node` scenario created by `make kind-up`, not the IPv6, dual-stack, multi-node, or multi-zone variants.
+
+To deploy the full Gardener stack with debugging settings:
 
 ```bash
-./hack/attach-debugger-gardenlet.sh
+export KUBECONFIG="$PWD/dev-setup/kubeconfigs/runtime/kubeconfig"
+make gardener-debug
 ```
 
-To step through the code with a debugger, attach your IDE to the port forwarded to localhost on your host machine.
-The default port forwarded by the `attach-debugger-gardenlet.sh` script is `2345` (can be controlled via the `-p` option). For the gardener-operator and the local cloud provider extensions, the default port is `56268`. If you debug multiple pods at the same time (e.g. by running `make operator-debug` first, followed by `make cloud-provider-local-debug` in a second terminal), the port of the second pod will be forwarded to `56269`. This is done automatically by skaffold, which will write the port to your console.
-See the [Skaffold debugging documentation](https://skaffold.dev/docs/workflows/debug/) for details on how to set up your IDE, or check the examples below ([GoLand](#debugging-in-goland), [VS Code](#debugging-in-vs-code)).
+The debug profiles build the supported components on the Skaffold debug support image, which includes Delve, without changing their entrypoints.
+They disable Go optimizations and inlining and preserve local source paths for stepping through code in your IDE.
 
+`make gardener-debug` combines `operator-debug`, `garden-debug`, and `seed-debug`.
+These targets return after deployment; they do not start Delve, forward ports, or watch for source changes.
+Wait for deployment to finish before attaching a debugger.
 
-> Note: Resuming or stopping only a single goroutine is currently not supported (Go issues [25578](https://github.com/golang/go/issues/25578), [31132](https://github.com/golang/go/issues/31132)), so the action causes all goroutines to be resumed or paused.
-> See the [vscode-go wiki](https://github.com/golang/vscode-go/wiki/debugging#connecting-to-headless-delve-with-target-specified-at-server-start-up).
+If you already have a running Gardener setup and want to debug only part of it, use the targets below instead:
 
-This means that when a goroutine of the gardenlet, or any other gardener-core component you are debugging, is paused on a breakpoint, all other goroutines are paused as well. Consequently, when the whole gardenlet process is paused, it cannot renew its lease and cannot respond to the liveness and readiness probes.
+| Component | Deployment commands |
+|-----------|---------------------|
+| `gardener-operator` | `make operator-debug` |
+| `gardener-apiserver`, `gardener-controller-manager`, `gardener-scheduler`, `gardener-admission-controller` | `make operator-debug`, then `make garden-debug` |
+| `gardenlet` | `make seed-debug` |
 
-Skaffold automatically increases the `timeoutSeconds` of liveness and readiness probes to `600`. However, we have still encountered problems where pods were killed after a while during debugging.
+`operator-debug` builds the gardener-operator and the images of the four Gardener components it deploys.
+`garden-debug` applies the [`Garden` debug overlay](../../dev-setup/garden/overlays/debug/kustomization.yaml): it disables health probes, disables leader election for the gardener-controller-manager and gardener-scheduler, and sets all four components to one replica.
+These settings are configured through `spec.virtualCluster.gardener.<component>.deployment` in the `Garden` resource (see the [`Garden` API reference](../api-reference/operator.md)).
+Both targets are required to debug an operator-managed component: `garden-debug` alone does not build debug images, and `operator-debug` alone does not change these components' probe or leader-election settings.
 
-Therefore, leader election, health checks, and readiness checks for the respective components are disabled when debugging.
+`seed-debug` deploys the gardenlet with the [`Gardenlet` debug overlay](../../dev-setup/gardenlet/overlays/debug/kustomization.yaml), which disables its health probes and leader election.
 
-If you have similar problems with other components, you can temporarily turn off leader election and disable liveness and readiness probes there as well.
+### Attaching the debugger
+
+Use the [`attach-debugger-gardener-component.sh`](../../hack/attach-debugger-gardener-component.sh) helper to start Delve in the component's container and forward its port to your machine.
+The helper uses your current `KUBECONFIG` and looks for pods in the runtime cluster's `garden` namespace, not in the virtual garden cluster.
+If you open a new terminal, set the runtime kubeconfig there as well.
+
+For example, to debug the gardener-controller-manager:
+
+```bash
+export KUBECONFIG="$PWD/dev-setup/kubeconfigs/runtime/kubeconfig"
+./hack/attach-debugger-gardener-component.sh gardener-controller-manager
+```
+
+Replace `gardener-controller-manager` with any component listed in the table above.
+The deployment targets also print the applicable helper commands.
+
+Keep the helper running while you debug, and connect your IDE to `127.0.0.1:2345` as described below for [GoLand](#debugging-in-goland) or [VS Code](#debugging-in-vs-code).
+To debug another component at the same time, run a second helper in a separate terminal with a different port:
+
+```bash
+./hack/attach-debugger-gardener-component.sh -p 2346 gardenlet
+```
+
+Connect the second IDE configuration to `127.0.0.1:2346`.
+Ports are not assigned automatically by the helper.
+
+The component is already running when Delve attaches, so breakpoints in startup code will not catch code that has already executed.
+After changing source code, rerun the relevant deployment targets and attach to the new pod again.
+
+### Behavior at breakpoints
+
+Pausing at a breakpoint pauses the whole Go process, not just the selected goroutine (see Go issues [25578](https://github.com/golang/go/issues/25578) and [31132](https://github.com/golang/go/issues/31132)).
+The component cannot respond to health probes or renew its leader-election lease while paused, which is why the debug setup disables them.
+Other components can still log errors or time out while waiting for the paused component.
+
+> [!NOTE]
+> The gardener-apiserver is an aggregated API server.
+> While it is paused, requests to the API groups it serves (e.g. `core.gardener.cloud`) through the virtual garden's kube-apiserver cannot complete.
+> This also affects `kubectl` commands and controllers accessing these APIs.
 
 ### Debugging in GoLand
 
-1. Edit your **Run/Debug Configurations**.
-2. Add a new **Go Remote** configuration.
-3. Set the port to `56268` (or any increment of it when debugging multiple components).
+1. Open the Gardener repository in GoLand and edit your **Run/Debug Configurations**.
+2. Add a **Go Remote** configuration.
+3. Set **Host** to `127.0.0.1` and **Port** to the port forwarded by the helper (`2345` by default).
 4. _Recommended:_ Change the behavior of **On disconnect** to **Leave it running**.
+5. Start the debug configuration, set breakpoints, and trigger the operation you want to inspect.
 
 ### Debugging in VS Code
 
-1. Create or edit your `.vscode/launch.json` configuration.
-2. Add the following configuration:
+Open the Gardener repository in VS Code with the [Go extension](https://marketplace.visualstudio.com/items?itemName=golang.Go) installed.
+Create `.vscode/launch.json` with the following contents, or add the configuration to its existing `configurations` array:
 
-```json5
+```json
 {
-  "name": "go remote",
-  "type": "go",
-  "request": "attach",
-  "mode": "remote",
-  "port": 56268, // or any increment of it when debugging multiple components
-  "host": "127.0.0.1"
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Gardener remote",
+      "type": "go",
+      "request": "attach",
+      "mode": "remote",
+      "debugAdapter": "dlv-dap",
+      "host": "127.0.0.1",
+      "port": 2345
+    }
+  ]
 }
 ```
 
-Since the [ko](https://skaffold.dev/docs/builders/builder-types/ko/) builder is used in Skaffold to build the images, it's not necessary to specify the `cwd` and `remotePath` options as they match the workspace folder ([ref](https://skaffold.dev/docs/workflows/debug/#skaffold-debug-using-the-vs-code-go-extension)).
+Set `port` to the value passed to the helper if you are not using `2345`.
+Select **Gardener remote** in **Run and Debug**, start debugging, and trigger the operation you want to inspect.
+
+The [ko builder](https://skaffold.dev/docs/builders/builder-types/ko/) compiles the binaries locally, and the debug profiles preserve these source paths.
+No source-path mapping is needed when your IDE uses the same checkout as the build.
+If you build from a different path or machine, configure `substitutePath` to map your workspace to the source location used during compilation (see the [VS Code Go remote debugging documentation](https://github.com/golang/vscode-go/blob/master/docs/debugging.md#remote-debugging)).
+
+### Debugging the local cloud-controller-manager
+
+The `cloud-provider-local-debug` target debugs the local cloud-controller-manager, not the gardener-extension-provider-local controller.
+Unlike the core debug targets, it uses `skaffold debug`, which starts the process under Delve and forwards its debug port automatically:
+
+```bash
+export KUBECONFIG="$PWD/dev-setup/kubeconfigs/runtime/kubeconfig"
+make cloud-provider-local-debug
+```
+
+Keep this command running and connect your IDE to the local port printed by Skaffold (normally `56268`).
+Do not run the attach helper for this component.
+For VS Code, use the configuration above with that port.
+See the [Skaffold debugging documentation](https://skaffold.dev/docs/workflows/debug/) for more details.
+
+### Returning to the normal setup
+
+Resume any paused processes, disconnect your IDE, and stop the attach helpers before redeploying.
+To restore the regular images, health probes, and leader-election settings, run:
+
+```bash
+make gardener-up
+```
+
+If you also used `cloud-provider-local-debug`, restore the local cloud-controller-manager with `make cloud-provider-local-up`.
 
 ## Creating a `Shoot` Cluster
 
