@@ -91,6 +91,9 @@ type Values struct {
 	ShootAdminKubeconfigMaxExpiration *metav1.Duration
 	// TargetVersion is the version of the kube-apiserver the gardener-apiserver is connecting to.
 	TargetVersion *semver.Version
+	// EnableHealthProbes configures whether the deployment's liveness and readiness probes are set. Defaults to true.
+	// Disabling them is intended for debugging, so a paused debugger does not trigger probe-based restarts.
+	EnableHealthProbes *bool
 }
 
 // AutoscalingConfig contains information for configuring autoscaling settings for the API server.

@@ -7,6 +7,7 @@ package admissioncontroller_test
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/hashicorp/go-multierror"
@@ -28,6 +29,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	vpaautoscalingv1 "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/apis/autoscaling.k8s.io/v1"
 	componentbaseconfigv1alpha1 "k8s.io/component-base/config/v1alpha1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/yaml"
@@ -130,6 +132,29 @@ var _ = Describe("GardenerAdmissionController", func() {
 			It("should successfully deploy", func() {
 				Expect(deployer.Deploy(ctx)).To(Succeed())
 				verifyExpectations(ctx, fakeClient, consistOf, fakeSecretManager, namespace, "4ef77c17", testValues)
+			})
+		})
+
+		Context("with debugging values", func() {
+			BeforeEach(func() {
+				testValues.EnableHealthProbes = ptr.To(false)
+				testValues.Replicas = ptr.To(int32(1))
+			})
+
+			It("should disable health probes and pin replicas for debugging", func() {
+				Expect(deployer.Deploy(ctx)).To(Succeed())
+
+				// verifyExpectations asserts (via consistOf) that the deployed ManagedResource matches
+				// deployment(..., testValues), which with these values has no probes and pinned replicas.
+				verifyExpectations(ctx, fakeClient, consistOf, fakeSecretManager, namespace, "4ef77c17", testValues)
+
+				serverCert, ok := fakeSecretManager.Get("gardener-admission-controller-cert")
+				Expect(ok).To(BeTrue())
+				expectedDeployment := deployment(namespace, "gardener-admission-controller-4ef77c17", serverCert.Name, testValues)
+				Expect(expectedDeployment.Spec.Template.Spec.Containers[0].LivenessProbe).To(BeNil())
+				Expect(expectedDeployment.Spec.Template.Spec.Containers[0].ReadinessProbe).To(BeNil())
+				Expect(expectedDeployment.Spec.Replicas).To(Equal(ptr.To(int32(1))))
+				Expect(expectedDeployment.Annotations).To(HaveKeyWithValue("high-availability-config.resources.gardener.cloud/replicas", "1"))
 			})
 		})
 
@@ -593,28 +618,6 @@ func deployment(namespace, configSecretName, serverCertSecretName string, testVa
 									corev1.ResourceMemory: resource.MustParse("200Mi"),
 								},
 							},
-							LivenessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path:   "/healthz",
-										Port:   intstr.FromInt32(2722),
-										Scheme: corev1.URISchemeHTTP,
-									},
-								},
-								InitialDelaySeconds: 15,
-								TimeoutSeconds:      5,
-							},
-							ReadinessProbe: &corev1.Probe{
-								ProbeHandler: corev1.ProbeHandler{
-									HTTPGet: &corev1.HTTPGetAction{
-										Path:   "/readyz",
-										Port:   intstr.FromInt32(2722),
-										Scheme: corev1.URISchemeHTTP,
-									},
-								},
-								InitialDelaySeconds: 10,
-								TimeoutSeconds:      5,
-							},
 							SecurityContext: &corev1.SecurityContext{
 								AllowPrivilegeEscalation: new(false),
 							},
@@ -692,6 +695,36 @@ func deployment(namespace, configSecretName, serverCertSecretName string, testVa
 				},
 			},
 		},
+	}
+
+	if ptr.Deref(testValues.EnableHealthProbes, true) {
+		deployment.Spec.Template.Spec.Containers[0].LivenessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path:   "/healthz",
+					Port:   intstr.FromInt32(2722),
+					Scheme: corev1.URISchemeHTTP,
+				},
+			},
+			InitialDelaySeconds: 15,
+			TimeoutSeconds:      5,
+		}
+		deployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path:   "/readyz",
+					Port:   intstr.FromInt32(2722),
+					Scheme: corev1.URISchemeHTTP,
+				},
+			},
+			InitialDelaySeconds: 10,
+			TimeoutSeconds:      5,
+		}
+	}
+
+	if testValues.Replicas != nil {
+		deployment.Spec.Replicas = testValues.Replicas
+		metav1.SetMetaDataAnnotation(&deployment.ObjectMeta, "high-availability-config.resources.gardener.cloud/replicas", strconv.Itoa(int(*testValues.Replicas)))
 	}
 
 	utilruntime.Must(references.InjectAnnotations(deployment))

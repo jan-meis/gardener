@@ -2265,6 +2265,69 @@ float
 <p>ShootAdminKubeconfigMaxExpiration is the maximum validity duration of a credential requested to a Shoot by an AdminKubeconfigRequest.<br />If an otherwise valid AdminKubeconfigRequest with a validity duration larger than this value is requested,<br />a credential will be issued with a validity duration of this value.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>deployment</code></br>
+<em>
+<a href="#gardenerapiserverdeployment">GardenerAPIServerDeployment</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Deployment specifies certain gardener-apiserver deployment parameters, such as the number of replicas.</p>
+</td>
+</tr>
+
+</tbody>
+</table>
+
+
+<h3 id="gardenerapiserverdeployment">GardenerAPIServerDeployment
+</h3>
+
+
+<p>
+(<em>Appears on:</em><a href="#gardenerapiserverconfig">GardenerAPIServerConfig</a>)
+</p>
+
+<p>
+GardenerAPIServerDeployment specifies certain gardener-apiserver deployment parameters, such as the number of
+replicas.
+</p>
+
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+
+<tr>
+<td>
+<code>replicaCount</code></br>
+<em>
+integer
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>ReplicaCount is the number of gardener-apiserver replicas. If unset, the default applies (2, or 3 if the<br />virtual cluster is highly available).</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>enableHealthProbes</code></br>
+<em>
+boolean
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>EnableHealthProbes specifies whether the Kubernetes liveness and readiness probes are added to the<br />gardener-apiserver deployment. Defaults to true. Disabling them is intended for debugging only, so that a pod<br />which is paused in a debugger is not restarted. Do not disable them in productive environments.</p>
+</td>
+</tr>
 
 </tbody>
 </table>
@@ -2327,6 +2390,132 @@ string
 <p>ResourceAdmissionConfiguration is the configuration for resource size restrictions for arbitrary Group-Version-Kinds.</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>deployment</code></br>
+<em>
+<a href="#gardeneradmissioncontrollerdeployment">GardenerAdmissionControllerDeployment</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Deployment specifies certain gardener-admission-controller deployment parameters, such as the number of replicas.</p>
+</td>
+</tr>
+
+</tbody>
+</table>
+
+
+<h3 id="gardeneradmissioncontrollerdeployment">GardenerAdmissionControllerDeployment
+</h3>
+
+
+<p>
+(<em>Appears on:</em><a href="#gardeneradmissioncontrollerconfig">GardenerAdmissionControllerConfig</a>)
+</p>
+
+<p>
+GardenerAdmissionControllerDeployment specifies certain gardener-admission-controller deployment parameters, such as
+the number of replicas.
+</p>
+
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+
+<tr>
+<td>
+<code>replicaCount</code></br>
+<em>
+integer
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>ReplicaCount is the number of gardener-admission-controller replicas. If unset, the default applies (1, or 2 if<br />the virtual cluster is highly available).</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>enableHealthProbes</code></br>
+<em>
+boolean
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>EnableHealthProbes specifies whether the Kubernetes liveness and readiness probes are added to the<br />gardener-admission-controller deployment. Defaults to true. Disabling them is intended for debugging only, so that<br />a pod which is paused in a debugger is not restarted. Do not disable them in productive environments.</p>
+</td>
+</tr>
+
+</tbody>
+</table>
+
+
+<h3 id="gardenercontrollerdeployment">GardenerControllerDeployment
+</h3>
+
+
+<p>
+(<em>Appears on:</em><a href="#gardenercontrollermanagerconfig">GardenerControllerManagerConfig</a>, <a href="#gardenerschedulerconfig">GardenerSchedulerConfig</a>)
+</p>
+
+<p>
+GardenerControllerDeployment specifies certain deployment parameters of the gardener-controller-manager and the
+gardener-scheduler, such as the number of replicas.
+</p>
+
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+
+<tr>
+<td>
+<code>replicaCount</code></br>
+<em>
+integer
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>ReplicaCount is the number of replicas. If unset, the default applies (1, or 2 if the virtual cluster is highly<br />available).</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>enableHealthProbes</code></br>
+<em>
+boolean
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>EnableHealthProbes specifies whether the Kubernetes liveness and readiness probes are added to the deployment.<br />Defaults to true. Disabling them is intended for debugging only, so that a pod which is paused in a debugger is<br />not restarted. Do not disable them in productive environments.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>enableLeaderElection</code></br>
+<em>
+boolean
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>EnableLeaderElection specifies whether leader election is enabled. Defaults to true. Disabling it is intended for<br />debugging only, so that a process which is paused in a debugger does not lose its leadership. It can only be<br />disabled if `replicaCount` is explicitly set to 1. Do not disable it in productive environments.</p>
+</td>
+</tr>
 
 </tbody>
 </table>
@@ -2387,6 +2576,18 @@ string
 <td>
 <em>(Optional)</em>
 <p>LogLevel is the configured log level for the gardener-controller-manager. Must be one of [info,debug,error].<br />Defaults to info.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>deployment</code></br>
+<em>
+<a href="#gardenercontrollerdeployment">GardenerControllerDeployment</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Deployment specifies certain gardener-controller-manager deployment parameters, such as the number of replicas.</p>
 </td>
 </tr>
 
@@ -2695,6 +2896,18 @@ string
 <td>
 <em>(Optional)</em>
 <p>LogLevel is the configured log level for the gardener-scheduler. Must be one of [info,debug,error].<br />Defaults to info.</p>
+</td>
+</tr>
+<tr>
+<td>
+<code>deployment</code></br>
+<em>
+<a href="#gardenercontrollerdeployment">GardenerControllerDeployment</a>
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>Deployment specifies certain gardener-scheduler deployment parameters, such as the number of replicas.</p>
 </td>
 </tr>
 

@@ -11,19 +11,28 @@ source "$(dirname "$0")/scenario.sh"
 detect_scenario
 
 COMMAND="${1:-up}"
-VALID_COMMANDS=("up down")
+VALID_COMMANDS=("up debug down")
 
 garden_name="local"
 if [[ "$SCENARIO" == "remote" ]]; then
   garden_name="remote"
 fi
 
+overlay="$SCENARIO"
+if [[ "$COMMAND" == "debug" ]]; then
+  if [[ "$SCENARIO" != "single-node" ]]; then
+    echo "Error: 'debug' is only supported for the single-node scenario, but detected scenario '$SCENARIO'." >&2
+    exit 1
+  fi
+  overlay="debug"
+fi
+
 case "$COMMAND" in
-  up)
+  up | debug)
     echo "Waiting for Garden CRD to be established..."
     kubectl wait --for=condition=Established crd/gardens.operator.gardener.cloud --timeout=60s
 
-    kubectl apply -k "$(dirname "$0")/garden/overlays/$SCENARIO"
+    kubectl apply -k "$(dirname "$0")/garden/overlays/$overlay"
 
     # Check whether the current gardener-operator pod(s) already reconciled (or are currently reconciling) the Garden.
     # If so, we don't need to trigger an explicit reconciliation via the operation annotation. This avoids unnecessary
@@ -64,6 +73,14 @@ case "$COMMAND" in
     if [[ "$SCENARIO" == "remote" ]]; then
       registry_domain=$(cat "$(dirname "$0")/remote/registry/registrydomain")
       "$(dirname "$0")"/remote/registry/deploy-registry.sh "$KUBECONFIG" "$registry_domain" "$KUBECONFIG_VIRTUAL_GARDEN_CLUSTER"
+    fi
+
+    if [[ "$COMMAND" == "debug" ]]; then
+      echo ""
+      echo "The Garden has been deployed with debugging settings. Attach a debugger to a component with:"
+      for component in gardener-apiserver gardener-controller-manager gardener-scheduler gardener-admission-controller; do
+        echo "  ./hack/attach-debugger-gardener-component.sh $component"
+      done
     fi
     ;;
 

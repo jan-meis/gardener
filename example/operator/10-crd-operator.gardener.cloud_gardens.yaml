@@ -708,6 +708,24 @@ spec:
                             required:
                             - kubeconfigSecretName
                             type: object
+                          deployment:
+                            description: Deployment specifies certain gardener-apiserver
+                              deployment parameters, such as the number of replicas.
+                            properties:
+                              enableHealthProbes:
+                                description: |-
+                                  EnableHealthProbes specifies whether the Kubernetes liveness and readiness probes are added to the
+                                  gardener-apiserver deployment. Defaults to true. Disabling them is intended for debugging only, so that a pod
+                                  which is paused in a debugger is not restarted. Do not disable them in productive environments.
+                                type: boolean
+                              replicaCount:
+                                description: |-
+                                  ReplicaCount is the number of gardener-apiserver replicas. If unset, the default applies (2, or 3 if the
+                                  virtual cluster is highly available).
+                                format: int32
+                                minimum: 1
+                                type: integer
+                            type: object
                           encryptionConfig:
                             description: EncryptionConfig contains customizable encryption
                               configuration of the Gardener API server.
@@ -849,6 +867,24 @@ spec:
                         description: AdmissionController contains configuration settings
                           for the gardener-admission-controller.
                         properties:
+                          deployment:
+                            description: Deployment specifies certain gardener-admission-controller
+                              deployment parameters, such as the number of replicas.
+                            properties:
+                              enableHealthProbes:
+                                description: |-
+                                  EnableHealthProbes specifies whether the Kubernetes liveness and readiness probes are added to the
+                                  gardener-admission-controller deployment. Defaults to true. Disabling them is intended for debugging only, so that
+                                  a pod which is paused in a debugger is not restarted. Do not disable them in productive environments.
+                                type: boolean
+                              replicaCount:
+                                description: |-
+                                  ReplicaCount is the number of gardener-admission-controller replicas. If unset, the default applies (1, or 2 if
+                                  the virtual cluster is highly available).
+                                format: int32
+                                minimum: 1
+                                type: integer
+                            type: object
                           featureGates:
                             additionalProperties:
                               type: boolean
@@ -1143,6 +1179,30 @@ spec:
                               - config
                               type: object
                             type: array
+                          deployment:
+                            description: Deployment specifies certain gardener-controller-manager
+                              deployment parameters, such as the number of replicas.
+                            properties:
+                              enableHealthProbes:
+                                description: |-
+                                  EnableHealthProbes specifies whether the Kubernetes liveness and readiness probes are added to the deployment.
+                                  Defaults to true. Disabling them is intended for debugging only, so that a pod which is paused in a debugger is
+                                  not restarted. Do not disable them in productive environments.
+                                type: boolean
+                              enableLeaderElection:
+                                description: |-
+                                  EnableLeaderElection specifies whether leader election is enabled. Defaults to true. Disabling it is intended for
+                                  debugging only, so that a process which is paused in a debugger does not lose its leadership. It can only be
+                                  disabled if `replicaCount` is explicitly set to 1. Do not disable it in productive environments.
+                                type: boolean
+                              replicaCount:
+                                description: |-
+                                  ReplicaCount is the number of replicas. If unset, the default applies (1, or 2 if the virtual cluster is highly
+                                  available).
+                                format: int32
+                                minimum: 1
+                                type: integer
+                            type: object
                           featureGates:
                             additionalProperties:
                               type: boolean
@@ -1462,6 +1522,30 @@ spec:
                         description: Scheduler contains configuration settings for
                           the gardener-scheduler.
                         properties:
+                          deployment:
+                            description: Deployment specifies certain gardener-scheduler
+                              deployment parameters, such as the number of replicas.
+                            properties:
+                              enableHealthProbes:
+                                description: |-
+                                  EnableHealthProbes specifies whether the Kubernetes liveness and readiness probes are added to the deployment.
+                                  Defaults to true. Disabling them is intended for debugging only, so that a pod which is paused in a debugger is
+                                  not restarted. Do not disable them in productive environments.
+                                type: boolean
+                              enableLeaderElection:
+                                description: |-
+                                  EnableLeaderElection specifies whether leader election is enabled. Defaults to true. Disabling it is intended for
+                                  debugging only, so that a process which is paused in a debugger does not lose its leadership. It can only be
+                                  disabled if `replicaCount` is explicitly set to 1. Do not disable it in productive environments.
+                                type: boolean
+                              replicaCount:
+                                description: |-
+                                  ReplicaCount is the number of replicas. If unset, the default applies (1, or 2 if the virtual cluster is highly
+                                  available).
+                                format: int32
+                                minimum: 1
+                                type: integer
+                            type: object
                           featureGates:
                             additionalProperties:
                               type: boolean

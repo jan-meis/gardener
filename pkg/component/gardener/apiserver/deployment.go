@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/utils/ptr"
 
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	operatorv1alpha1 "github.com/gardener/gardener/pkg/apis/operator/v1alpha1"
@@ -114,34 +115,6 @@ func (g *gardenerAPIServer) deployment(
 							Protocol:      corev1.ProtocolTCP,
 						}},
 						Resources: g.values.Autoscaling.APIServerResources,
-						LivenessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path:   "/livez",
-									Scheme: corev1.URISchemeHTTPS,
-									Port:   intstr.FromInt32(port),
-								},
-							},
-							SuccessThreshold:    1,
-							FailureThreshold:    3,
-							InitialDelaySeconds: 15,
-							PeriodSeconds:       10,
-							TimeoutSeconds:      15,
-						},
-						ReadinessProbe: &corev1.Probe{
-							ProbeHandler: corev1.ProbeHandler{
-								HTTPGet: &corev1.HTTPGetAction{
-									Path:   "/readyz",
-									Scheme: corev1.URISchemeHTTPS,
-									Port:   intstr.FromInt32(port),
-								},
-							},
-							SuccessThreshold:    1,
-							FailureThreshold:    3,
-							InitialDelaySeconds: 15,
-							PeriodSeconds:       10,
-							TimeoutSeconds:      15,
-						},
 						SecurityContext: &corev1.SecurityContext{
 							AllowPrivilegeEscalation: new(false),
 						},
@@ -149,6 +122,37 @@ func (g *gardenerAPIServer) deployment(
 				},
 			},
 		},
+	}
+
+	if ptr.Deref(g.values.EnableHealthProbes, true) {
+		deployment.Spec.Template.Spec.Containers[0].LivenessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path:   "/livez",
+					Scheme: corev1.URISchemeHTTPS,
+					Port:   intstr.FromInt32(port),
+				},
+			},
+			SuccessThreshold:    1,
+			FailureThreshold:    3,
+			InitialDelaySeconds: 15,
+			PeriodSeconds:       10,
+			TimeoutSeconds:      15,
+		}
+		deployment.Spec.Template.Spec.Containers[0].ReadinessProbe = &corev1.Probe{
+			ProbeHandler: corev1.ProbeHandler{
+				HTTPGet: &corev1.HTTPGetAction{
+					Path:   "/readyz",
+					Scheme: corev1.URISchemeHTTPS,
+					Port:   intstr.FromInt32(port),
+				},
+			},
+			SuccessThreshold:    1,
+			FailureThreshold:    3,
+			InitialDelaySeconds: 15,
+			PeriodSeconds:       10,
+			TimeoutSeconds:      15,
+		}
 	}
 
 	injectWorkloadIdentitySettings(deployment, g.values.WorkloadIdentityTokenIssuer, secretWorkloadIdentitySigningKey)
