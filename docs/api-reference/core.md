@@ -711,7 +711,7 @@ string
 </td>
 <td>
 <em>(Optional)</em>
-<p>The name of the backup bucket used at the provider. Defaults to the seed's UID.<br />Through a subresource call this field can be altered in order to relocate a bucket location.</p>
+<p>BucketName is the name of the backup bucket used at the provider. Defaults to the Seed's UID on creation or update.<br />Changing this field to relocate backups requires the confirmation.gardener.cloud/change-backup annotation.</p>
 </td>
 </tr>
 
