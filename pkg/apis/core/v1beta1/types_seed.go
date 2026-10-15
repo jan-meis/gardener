@@ -153,8 +153,8 @@ type Backup struct {
 	// +optional
 	CredentialsRef *corev1.ObjectReference `json:"credentialsRef,omitempty" protobuf:"bytes,5,opt,name=credentialsRef"`
 
-	// The name of the backup bucket used at the provider. Defaults to the seed's UID.
-	// Through a subresource call this field can be altered in order to relocate a bucket location.
+	// BucketName is the name of the backup bucket used at the provider. Defaults to the Seed's UID on creation or update.
+	// Changing this field to relocate backups requires the confirmation.gardener.cloud/change-backup annotation.
 	// +optional
 	BucketName *string `json:"bucketName,omitempty" protobuf:"bytes,6,opt,name=bucketName"`
 }
