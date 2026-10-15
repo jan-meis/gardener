@@ -1529,6 +1529,13 @@ func schema_pkg_apis_core_v1beta1_Backup(ref common.ReferenceCallback) common.Op
 							Ref:         ref(corev1.ObjectReference{}.OpenAPIModelName()),
 						},
 					},
+					"bucketName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "BucketName is the name of the backup bucket used at the provider. Defaults to the Seed's UID on creation or update. Changing this field to relocate backups requires the confirmation.gardener.cloud/change-backup annotation.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"provider"},
 			},

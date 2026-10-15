@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/utils/ptr"
 
 	. "github.com/gardener/gardener/pkg/api/core/validation"
 	"github.com/gardener/gardener/pkg/apis/core"
@@ -85,8 +86,9 @@ var _ = Describe("Seed Validation Tests", func() {
 					},
 				},
 				Backup: &core.Backup{
-					Provider: "foo",
-					Region:   &region,
+					BucketName: ptr.To("some-bucket-name"),
+					Provider:   "foo",
+					Region:     &region,
 					CredentialsRef: &corev1.ObjectReference{
 						APIVersion: "v1",
 						Kind:       "Secret",
@@ -438,6 +440,15 @@ var _ = Describe("Seed Validation Tests", func() {
 					},
 				}
 				Expect(ValidateSeed(seed)).To(BeEmpty())
+				newSeed := prepareSeedForUpdate(seed)
+				newSeed.Spec.DNS.Internal = nil
+
+				errorList := ValidateSeedUpdate(newSeed, seed)
+				Expect(errorList).To(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(field.ErrorTypeForbidden),
+					"Field":  Equal("spec.dns.internal"),
+					"Detail": ContainSubstring("removing internal DNS configuration is not allowed"),
+				}))))
 			})
 		})
 
@@ -635,6 +646,31 @@ var _ = Describe("Seed Validation Tests", func() {
 						"Detail": ContainSubstring("supported values: \"/v1, Kind=Secret\""),
 					})),
 				))
+			})
+
+			It("should return an error if old seed has dns configured, but new one does not", func() {
+				seed.Spec.DNS.Defaults = []core.SeedDNSProviderConfig{
+					{
+						Type:   "foo",
+						Domain: "foo.example.com",
+						Zone:   ptr.To("zone-1"),
+						CredentialsRef: corev1.ObjectReference{
+							APIVersion: "v1",
+							Kind:       "Secret",
+							Name:       "internal-domain",
+							Namespace:  "garden",
+						},
+					},
+				}
+				newSeed := prepareSeedForUpdate(seed)
+				newSeed.Spec.DNS.Defaults = nil
+
+				errorList := ValidateSeedUpdate(newSeed, seed)
+				Expect(errorList).To(ContainElement(PointTo(MatchFields(IgnoreExtras, Fields{
+					"Type":   Equal(field.ErrorTypeForbidden),
+					"Field":  Equal("spec.dns.defaults"),
+					"Detail": ContainSubstring("removing defaults DNS configuration is not allowed"),
+				}))))
 			})
 		})
 
@@ -1611,6 +1647,7 @@ var _ = Describe("Seed Validation Tests", func() {
 			otherRegion := "other-region"
 			newSeed.Spec.Backup.Provider = "other-provider"
 			newSeed.Spec.Backup.Region = &otherRegion
+			newSeed.Spec.Backup.BucketName = ptr.To("other-bucketname")
 
 			Expect(ValidateSeedUpdate(newSeed, seed)).To(ConsistOfFields(Fields{
 				"Type":   Equal(field.ErrorTypeInvalid),
@@ -1626,6 +1663,10 @@ var _ = Describe("Seed Validation Tests", func() {
 				"Detail": Equal(`field is immutable`),
 			}, Fields{
 				"Type":   Equal(field.ErrorTypeInvalid),
+				"Field":  Equal("spec.backup.bucketName"),
+				"Detail": Equal(`field is immutable`),
+			}, Fields{
+				"Type":   Equal(field.ErrorTypeInvalid),
 				"Field":  Equal("spec.backup.region"),
 				"Detail": Equal(`field is immutable`),
 			}, Fields{
@@ -1636,6 +1677,54 @@ var _ = Describe("Seed Validation Tests", func() {
 		})
 
 		Context("#validateSeedBackupUpdate", func() {
+			DescribeTable("effective backup bucket names",
+				func(oldName, newName *string, confirmed, changeRegion bool, expectedField string) {
+					seed.UID = "seed-uid"
+					seed.Spec.Backup.BucketName = oldName
+					newSeed := prepareSeedForUpdate(seed)
+					newSeed.Spec.Backup.BucketName = newName
+					if confirmed {
+						metav1.SetMetaDataAnnotation(&newSeed.ObjectMeta, "confirmation.gardener.cloud/change-backup", "true")
+					}
+					if changeRegion {
+						newSeed.Spec.Backup.Region = ptr.To("other-region")
+					}
+					oldSpec, newSpec := seed.Spec.DeepCopy(), newSeed.Spec.DeepCopy()
+
+					errs := ValidateSeedUpdate(newSeed, seed)
+
+					if expectedField == "" {
+						Expect(errs).To(BeEmpty())
+					} else {
+						Expect(errs).To(ConsistOfFields(Fields{"Field": Equal(expectedField)}))
+					}
+					Expect(seed.Spec).To(Equal(*oldSpec))
+					Expect(newSeed.Spec).To(Equal(*newSpec))
+				},
+				Entry("allows persisting the UID default without confirmation", nil, ptr.To("seed-uid"), false, false, ""),
+				Entry("allows an omitted UID default without confirmation", ptr.To("seed-uid"), nil, false, false, ""),
+				Entry("rejects relocation from an omitted name without confirmation", nil, ptr.To("custom-bucket"), false, false, "spec.backup.bucketName"),
+				Entry("allows confirmed relocation from an omitted name", nil, ptr.To("custom-bucket"), true, false, ""),
+				Entry("rejects removing a custom name without confirmation", ptr.To("custom-bucket"), nil, false, false, "spec.backup.bucketName"),
+				Entry("allows a confirmed return to the UID default", ptr.To("custom-bucket"), nil, true, false, ""),
+				Entry("rejects a region change disguised as persisting the default", nil, ptr.To("seed-uid"), true, true, "spec"),
+				Entry("allows a region change with a genuinely new bucket", nil, ptr.To("custom-bucket"), true, true, ""),
+			)
+
+			It("should reject a provider change when only persisting the default bucket name", func() {
+				seed.UID = "seed-uid"
+				seed.Spec.Backup.BucketName = nil
+				newSeed := prepareSeedForUpdate(seed)
+				newSeed.Spec.Backup.BucketName = ptr.To("seed-uid")
+				newSeed.Spec.Backup.Provider = "other-provider"
+				metav1.SetMetaDataAnnotation(&newSeed.ObjectMeta, "confirmation.gardener.cloud/change-backup", "true")
+
+				Expect(ValidateSeedUpdate(newSeed, seed)).To(ConsistOfFields(Fields{
+					"Type":  Equal(field.ErrorTypeForbidden),
+					"Field": Equal("spec"),
+				}))
+			})
+
 			It("should allow adding backup profile", func() {
 				seed.Spec.Backup = nil
 				newSeed := prepareSeedForUpdate(seed)
@@ -1653,6 +1742,17 @@ var _ = Describe("Seed Validation Tests", func() {
 					"Field":  Equal("spec.backup"),
 					"Detail": Equal(`field is immutable`),
 				}))
+			})
+
+			It("should allow changing ETCD bucket/provider/region when confirmation annotation is set", func() {
+				newSeed := prepareSeedForUpdate(seed)
+				newSeed.Spec.Backup.Provider = "bar-provider"
+				newSeed.Spec.Backup.BucketName = ptr.To("bar-bucket")
+				newSeed.Spec.Backup.Region = ptr.To("bar-region")
+
+				metav1.SetMetaDataAnnotation(&newSeed.ObjectMeta, "confirmation.gardener.cloud/change-backup", "true")
+
+				Expect(ValidateSeedUpdate(newSeed, seed)).To(BeEmpty())
 			})
 		})
 

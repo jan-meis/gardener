@@ -702,6 +702,18 @@ string
 <p>CredentialsRef is reference to a resource holding the credentials used for<br />authentication with the object store service where the backups are stored.<br />Supported referenced resources are v1.Secrets and<br />security.gardener.cloud/v1alpha1.WorkloadIdentity</p>
 </td>
 </tr>
+<tr>
+<td>
+<code>bucketName</code></br>
+<em>
+string
+</em>
+</td>
+<td>
+<em>(Optional)</em>
+<p>BucketName is the name of the backup bucket used at the provider. Defaults to the Seed's UID on creation or update.<br />Changing this field to relocate backups requires the confirmation.gardener.cloud/change-backup annotation.</p>
+</td>
+</tr>
 
 </tbody>
 </table>

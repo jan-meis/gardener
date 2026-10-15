@@ -152,6 +152,11 @@ type Backup struct {
 	// security.gardener.cloud/v1alpha1.WorkloadIdentity
 	// +optional
 	CredentialsRef *corev1.ObjectReference `json:"credentialsRef,omitempty" protobuf:"bytes,5,opt,name=credentialsRef"`
+
+	// BucketName is the name of the backup bucket used at the provider. Defaults to the Seed's UID on creation or update.
+	// Changing this field to relocate backups requires the confirmation.gardener.cloud/change-backup annotation.
+	// +optional
+	BucketName *string `json:"bucketName,omitempty" protobuf:"bytes,6,opt,name=bucketName"`
 }
 
 // SeedDNS contains DNS-relevant information about this seed cluster.

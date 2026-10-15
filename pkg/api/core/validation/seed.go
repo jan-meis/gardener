@@ -11,6 +11,7 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/gardener/gardener/pkg/apis/core"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/utils"
+	gardenerutils "github.com/gardener/gardener/pkg/utils/gardener"
 	cidrvalidation "github.com/gardener/gardener/pkg/utils/validation/cidr"
 	featuresvalidation "github.com/gardener/gardener/pkg/utils/validation/features"
 	kubernetescorevalidation "github.com/gardener/gardener/pkg/utils/validation/kubernetes/core"
@@ -57,6 +59,7 @@ func ValidateSeedUpdate(newSeed, oldSeed *core.Seed) field.ErrorList {
 	allErrs = append(allErrs, apivalidation.ValidateObjectMetaUpdate(&newSeed.ObjectMeta, &oldSeed.ObjectMeta, field.NewPath("metadata"))...)
 	allErrs = append(allErrs, validateSeedOperationUpdate(newSeed.Annotations[v1beta1constants.GardenerOperation], oldSeed.Annotations[v1beta1constants.GardenerOperation], field.NewPath("metadata", "annotations").Key(v1beta1constants.GardenerOperation))...)
 	allErrs = append(allErrs, ValidateSeedSpecUpdate(&newSeed.Spec, &oldSeed.Spec, field.NewPath("spec"))...)
+	allErrs = append(allErrs, validateSeedBackupUpdate(newSeed.Spec.Backup, oldSeed.Spec.Backup, field.NewPath("spec", "backup"), newSeed.Annotations, newSeed.UID)...)
 	allErrs = append(allErrs, ValidateSeed(newSeed)...)
 
 	return allErrs
@@ -279,13 +282,41 @@ func validateSeedBackup(seedBackup *core.Backup, seedProviderType string, fldPat
 	}
 
 	if seedProviderType != seedBackup.Provider && (seedBackup.Region == nil || len(*seedBackup.Region) == 0) {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("region"), "", "region must be specified for if backup provider is different from seed provider used in `spec.provider.type`"))
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("region"), "", "region must be specified if backup provider is different from seed provider used in `spec.provider.type`"))
 	}
 
 	if seedBackup.CredentialsRef == nil {
 		allErrs = append(allErrs, field.Required(fldPath.Child("credentialsRef"), "must be set to refer a Secret or WorkloadIdentity"))
 	} else {
 		allErrs = append(allErrs, ValidateCredentialsRef(*seedBackup.CredentialsRef, fldPath.Child("credentialsRef"))...)
+	}
+
+	return allErrs
+}
+
+func validateSeedBackupUpdate(newSeedBackup, oldSeedBackup *core.Backup, fldPath *field.Path, newSeedAnnotations map[string]string, newSeedUID types.UID) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if oldSeedBackup != nil {
+		if newSeedBackup != nil {
+			if !gardenerutils.CheckIfBackupChangeIsConfirmed(newSeedAnnotations) {
+				// TODO(jan-meis): drop the if once all in-support gardener versions have the bucketName defaulting logic (i.e. around release 157-158).
+				if oldSeedBackup.BucketName != nil && *newSeedBackup.BucketName != string(newSeedUID) {
+					allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedBackup.BucketName, oldSeedBackup.BucketName, fldPath.Child("backup", "bucketName"))...)
+				}
+				allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedBackup.Provider, oldSeedBackup.Provider, fldPath.Child("backup", "provider"))...)
+				allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedBackup.Region, oldSeedBackup.Region, fldPath.Child("backup", "region"))...)
+			} else {
+				bucketNameChanged := !apiequality.Semantic.DeepEqual(oldSeedBackup.BucketName, newSeedBackup.BucketName)
+				providerChanged := !apiequality.Semantic.DeepEqual(oldSeedBackup.Provider, newSeedBackup.Provider)
+				regionChanged := !apiequality.Semantic.DeepEqual(oldSeedBackup.Region, newSeedBackup.Region)
+				if (regionChanged || providerChanged) && !bucketNameChanged {
+					allErrs = append(allErrs, field.Forbidden(fldPath, "changing backup provider or region without changing the bucket name is not allowed"))
+				}
+			}
+		} else {
+			allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedBackup, oldSeedBackup, fldPath.Child("backup"))...)
+		}
 	}
 
 	return allErrs
@@ -399,15 +430,6 @@ func ValidateSeedSpecUpdate(newSeedSpec, oldSeedSpec *core.SeedSpec, fldPath *fi
 
 	if oldSeedSpec.Ingress != nil && newSeedSpec.Ingress != nil {
 		allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedSpec.Ingress.Domain, oldSeedSpec.Ingress.Domain, fldPath.Child("ingress", "domain"))...)
-	}
-
-	if oldSeedSpec.Backup != nil {
-		if newSeedSpec.Backup != nil {
-			allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedSpec.Backup.Provider, oldSeedSpec.Backup.Provider, fldPath.Child("backup", "provider"))...)
-			allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedSpec.Backup.Region, oldSeedSpec.Backup.Region, fldPath.Child("backup", "region"))...)
-		} else {
-			allErrs = append(allErrs, apivalidation.ValidateImmutableField(newSeedSpec.Backup, oldSeedSpec.Backup, fldPath.Child("backup"))...)
-		}
 	}
 
 	// TODO(dimityrmirchev): Remove this check once the dns.defaults become required

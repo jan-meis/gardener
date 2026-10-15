@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/gardener/gardener/pkg/apis/core"
 	. "github.com/gardener/gardener/pkg/apiserver/registry/core/seed"
@@ -20,6 +21,39 @@ var _ = Describe("Strategy", func() {
 		ctx      = context.TODO()
 		strategy = Strategy{}
 	)
+
+	Describe("#PrepareForCreate", func() {
+		It("should default an omitted backup bucket name to the assigned UID", func() {
+			seed := &core.Seed{
+				ObjectMeta: metav1.ObjectMeta{UID: "seed-uid"},
+				Spec:       core.SeedSpec{Backup: &core.Backup{}},
+			}
+
+			strategy.PrepareForCreate(ctx, seed)
+
+			Expect(seed.Spec.Backup.BucketName).To(Equal(ptr.To("seed-uid")))
+			Expect(seed.Generation).To(Equal(int64(1)))
+		})
+
+		It("should preserve an explicit backup bucket name", func() {
+			seed := &core.Seed{
+				ObjectMeta: metav1.ObjectMeta{UID: "seed-uid"},
+				Spec:       core.SeedSpec{Backup: &core.Backup{BucketName: ptr.To("custom-bucket")}},
+			}
+
+			strategy.PrepareForCreate(ctx, seed)
+
+			Expect(seed.Spec.Backup.BucketName).To(Equal(ptr.To("custom-bucket")))
+		})
+
+		It("should keep backup disabled when no backup configuration is supplied", func() {
+			seed := &core.Seed{}
+
+			strategy.PrepareForCreate(ctx, seed)
+
+			Expect(seed.Spec.Backup).To(BeNil())
+		})
+	})
 
 	Describe("#PrepareForUpdate", func() {
 		var oldSeed, newSeed *core.Seed
@@ -34,6 +68,24 @@ var _ = Describe("Strategy", func() {
 			strategy.PrepareForUpdate(ctx, newSeed, oldSeed)
 			Expect(newSeed.Status).To(Equal(oldSeed.Status))
 		})
+
+		DescribeTable("backup bucket name defaulting",
+			func(oldBackup *core.Backup, bucketName *string, expectedName string) {
+				oldSeed.UID = "seed-uid"
+				oldSeed.Spec.Backup = oldBackup
+				newSeed = oldSeed.DeepCopy()
+				newSeed.Spec.Backup = &core.Backup{BucketName: bucketName}
+
+				strategy.PrepareForUpdate(ctx, newSeed, oldSeed)
+
+				Expect(newSeed.Spec.Backup.BucketName).To(Equal(ptr.To(expectedName)))
+				Expect(newSeed.Generation).To(Equal(oldSeed.Generation + 1))
+				Expect(oldSeed.Spec.Backup).To(Equal(oldBackup))
+			},
+			Entry("should populate the default for an older Seed", &core.Backup{}, nil, "seed-uid"),
+			Entry("should populate the default when enabling backups", nil, nil, "seed-uid"),
+			Entry("should preserve an explicit name", &core.Backup{}, ptr.To("custom-bucket"), "custom-bucket"),
+		)
 
 		Context("generation increment", func() {
 			It("should not bump the generation if nothing changed", func() {

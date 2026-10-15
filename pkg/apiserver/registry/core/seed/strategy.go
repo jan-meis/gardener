@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/storage/names"
+	"k8s.io/utils/ptr"
 
 	"github.com/gardener/gardener/pkg/api"
 	"github.com/gardener/gardener/pkg/api/core/validation"
@@ -41,6 +42,10 @@ func (s Strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 
 	seed.Generation = 1
 	seed.Status = core.SeedStatus{}
+
+	if seed.Spec.Backup != nil && seed.Spec.Backup.BucketName == nil {
+		seed.Spec.Backup.BucketName = ptr.To(string(seed.UID))
+	}
 }
 
 // PrepareForUpdate is invoked on update before validation to normalize
@@ -51,6 +56,10 @@ func (s Strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
 	newSeed := obj.(*core.Seed)
 	oldSeed := old.(*core.Seed)
 	newSeed.Status = oldSeed.Status
+
+	if newSeed.Spec.Backup != nil && newSeed.Spec.Backup.BucketName == nil {
+		newSeed.Spec.Backup.BucketName = ptr.To(string(oldSeed.UID))
+	}
 
 	if mustIncreaseGeneration(oldSeed, newSeed) {
 		newSeed.Generation = oldSeed.Generation + 1
