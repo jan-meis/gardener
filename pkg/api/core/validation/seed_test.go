@@ -1677,6 +1677,54 @@ var _ = Describe("Seed Validation Tests", func() {
 		})
 
 		Context("#validateSeedBackupUpdate", func() {
+			DescribeTable("effective backup bucket names",
+				func(oldName, newName *string, confirmed, changeRegion bool, expectedField string) {
+					seed.UID = "seed-uid"
+					seed.Spec.Backup.BucketName = oldName
+					newSeed := prepareSeedForUpdate(seed)
+					newSeed.Spec.Backup.BucketName = newName
+					if confirmed {
+						metav1.SetMetaDataAnnotation(&newSeed.ObjectMeta, "confirmation.gardener.cloud/change-backup", "true")
+					}
+					if changeRegion {
+						newSeed.Spec.Backup.Region = ptr.To("other-region")
+					}
+					oldSpec, newSpec := seed.Spec.DeepCopy(), newSeed.Spec.DeepCopy()
+
+					errs := ValidateSeedUpdate(newSeed, seed)
+
+					if expectedField == "" {
+						Expect(errs).To(BeEmpty())
+					} else {
+						Expect(errs).To(ConsistOfFields(Fields{"Field": Equal(expectedField)}))
+					}
+					Expect(seed.Spec).To(Equal(*oldSpec))
+					Expect(newSeed.Spec).To(Equal(*newSpec))
+				},
+				Entry("allows persisting the UID default without confirmation", nil, ptr.To("seed-uid"), false, false, ""),
+				Entry("allows an omitted UID default without confirmation", ptr.To("seed-uid"), nil, false, false, ""),
+				Entry("rejects relocation from an omitted name without confirmation", nil, ptr.To("custom-bucket"), false, false, "spec.backup.bucketName"),
+				Entry("allows confirmed relocation from an omitted name", nil, ptr.To("custom-bucket"), true, false, ""),
+				Entry("rejects removing a custom name without confirmation", ptr.To("custom-bucket"), nil, false, false, "spec.backup.bucketName"),
+				Entry("allows a confirmed return to the UID default", ptr.To("custom-bucket"), nil, true, false, ""),
+				Entry("rejects a region change disguised as persisting the default", nil, ptr.To("seed-uid"), true, true, "spec"),
+				Entry("allows a region change with a genuinely new bucket", nil, ptr.To("custom-bucket"), true, true, ""),
+			)
+
+			It("should reject a provider change when only persisting the default bucket name", func() {
+				seed.UID = "seed-uid"
+				seed.Spec.Backup.BucketName = nil
+				newSeed := prepareSeedForUpdate(seed)
+				newSeed.Spec.Backup.BucketName = ptr.To("seed-uid")
+				newSeed.Spec.Backup.Provider = "other-provider"
+				metav1.SetMetaDataAnnotation(&newSeed.ObjectMeta, "confirmation.gardener.cloud/change-backup", "true")
+
+				Expect(ValidateSeedUpdate(newSeed, seed)).To(ConsistOfFields(Fields{
+					"Type":  Equal(field.ErrorTypeForbidden),
+					"Field": Equal("spec"),
+				}))
+			})
+
 			It("should allow adding backup profile", func() {
 				seed.Spec.Backup = nil
 				newSeed := prepareSeedForUpdate(seed)
