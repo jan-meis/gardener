@@ -613,6 +613,13 @@ func (g *garden) Start(ctx context.Context) error {
 	return nil
 }
 
+func (g *garden) removeGardenletOwnedAnnotations(seedAnnotations, gardenletSeedConfigAnnotations map[string]string) {
+	_, ok := gardenletSeedConfigAnnotations[v1beta1constants.ConfirmationBackupChange]
+	if !ok {
+		delete(seedAnnotations, v1beta1constants.ConfirmationBackupChange)
+	}
+}
+
 func (g *garden) registerSeed(ctx context.Context, gardenClient client.Client, isSelfHostedShoot bool) error {
 	seed := &gardencorev1beta1.Seed{
 		ObjectMeta: metav1.ObjectMeta{
@@ -621,6 +628,7 @@ func (g *garden) registerSeed(ctx context.Context, gardenClient client.Client, i
 	}
 
 	if _, err := controllerutils.GetAndCreateOrMergePatch(ctx, gardenClient, seed, func() error {
+		g.removeGardenletOwnedAnnotations(seed.Annotations, g.config.SeedConfig.Annotations)
 		seed.Annotations = utils.MergeStringMaps(seed.Annotations, g.config.SeedConfig.Annotations)
 		seed.Labels = utils.MergeStringMaps(map[string]string{
 			v1beta1constants.GardenRole: v1beta1constants.GardenRoleSeed,
